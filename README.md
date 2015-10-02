@@ -1,3 +1,3 @@
 # ISA
-Project for ISA course
+Project for ISA course\n
 News reader in Atom format with SSL/TLS
