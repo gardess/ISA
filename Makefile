@@ -1,3 +1,6 @@
+#Makefile pro ISA projekt
+#Autor: Milan Gardáš <xgarda04@stud.fit.vutbr.cz>
+
 CPP=g++
 FLAGS= -std=c++11 -Wall -Wextra -pedantic -g
 
@@ -11,4 +14,9 @@ clean:
 
 tar: *.cpp *.h Makefile
 	tar -cvf xgarda04.tar *.cpp *.h Makefile
+
+commit: clean
+	git commit -a
+	git pull
+	git push
 
