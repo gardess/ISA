@@ -17,6 +17,6 @@ tar: *.cpp *.h Makefile
 
 commit: clean
 	git commit -a
-	git pull
-	git push
+	git pull origin master
+	git push origin master
 
