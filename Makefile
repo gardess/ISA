@@ -2,12 +2,14 @@
 #Autor: Milan Gardáš <xgarda04@stud.fit.vutbr.cz>
 
 CPP=g++
-FLAGS= -std=c++11 -Wall -Wextra -pedantic -g
+CFLAGS= -std=c++11 -Wall -Wextra -pedantic -g
+LDFLAGS = -L/usr/local/ssl/lib
+LDLIBS = -lssl -lcrypto
 
 all: arfeed
 
 arfeed: arfeed.cpp
-	$(CPP) $(FLAGS) arfeed.cpp -o arfeed
+	$(CPP) $(CFLAGS) arfeed.cpp -o arfeed $(LDFLAGS) $(LDLIBS)
 
 clean:
 	rm -f arfeed xgarda04.tar 
