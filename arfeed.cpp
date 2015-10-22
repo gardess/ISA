@@ -1,16 +1,18 @@
 #include <iostream>
 #include <string.h>
 #include <cstring>
+#include <cctype>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
-#define HTTP 1
-#define HTTPS 2
-#define DEBUG
+#define HTTP 80
+#define HTTPS 443
+
 
 using namespace std;
 
+// struktura pro uložení parametrů příkazové řádky
 using Param = struct parametry {
 	string adresaParamStr;
 	string fParamStr;
@@ -26,83 +28,43 @@ using Param = struct parametry {
 	int uParam = 0;
 };
 
+// deklarace funkčních prototypů
 void printHelp();
 int parseParameters(int argc, char* argv[], Param* parametr);
+string adresa(Param* parametr);
+int port(Param* parametr, int* posun);
+string portS(int index, string str, int portI);
+
 
 int main(int argc, char* argv[])
 {
 	Param* parametr = new Param;
-	if (parseParameters(argc, argv, parametr) == -1)
+	int par = parseParameters(argc, argv, parametr);
+	if (par == -1)
 	{
-		cerr << "Spatne zadane parametry" << endl;
+		//cerr << "Spatne zadane parametry" << endl;
 		delete parametr;
 		return -1;
 	}
-	
-	/*
+	else if (par == -2)
+	{
+		delete parametr;
+		return 0;
+	}
+		
+	string adr = adresa(parametr);
+
+	char *prip = new char[adr.length()+1];
+	strcpy(prip,adr.c_str());
+	cout << "test: " << prip << endl;
+	//--------------------------------------------------------------------------------------------------
+	// Pripojeni
+
+	//funkce pro openSSL
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	SSL_library_init();
-	*/
-	int port = 0;
-	int posun = 0;
-	string str, prefix1, prefix2, lomitko, str2;
-	prefix1 = "http://";
-	prefix2 = "https://";
-	lomitko = "/";
-	size_t found = parametr->adresaParamStr.find(prefix1);
-	if (found!=string::npos)
-	{
-		port = 80;
-		cout << "http nalezeno na " << found << " port: " << port << endl;
-		posun = 7;
-	}
-	found = parametr->adresaParamStr.find(prefix2);
-	if (found!=string::npos)
-	{
-		port = 443;
-		cout << "https nalezeno na " << found << " port: " << port << endl;
-		posun = 8;
-	}
-	
-	// odstranění prefixu (http:// nebo https://)
-	str.assign(parametr->adresaParamStr,posun,parametr->adresaParamStr.length());
-	cout << "********************************************************************************" << endl;
-	bool nalezeno = false;
-	int index;
-	for(unsigned int i = 0; i < str.length(); i++)
-	{
-		if (str[i] == '/')
-		{
-			nalezeno = true;
-			index = i;
-			break;
-		}
-	}
-	cout << "index: " << index << endl;
-	cout << "retezec: " << str << endl;
-	string pozadavek;
-	if (nalezeno == true)
-	{
-		str2.assign(str,0,index);
-		pozadavek.assign(str,index,str.length());
-	}
-	cout << "********************************************************************************" << endl;
-	
-	cout << "retezec: " << str << endl;
-	cout << "retezec2: " << str2 << endl;
-	cout << "pozadavek: " << pozadavek << endl;
-	//char *prip = new char[parametr->adresaParamStr.length() + 1];
-	char *prip = new char[str2.length()+1];
-	//strcpy(prip, "google.com:80" );
-	//strcpy(prip, "tools.ietf.org:80" );
-	//prip = parametr->adresaParamStr.c_str();
-	//strcpy(prip, parametr->adresaParamStr);
-	strcpy(prip,str2.c_str());
-	//strcpy(prip,parametr->adresaParamStr.c_str());
-	cout << "test: " << prip << endl;
-	//char * prip = "google.com:80"; 
-	
+
 	BIO * bio;
 	bio = BIO_new_connect(prip);
 	if (bio == NULL)
@@ -119,6 +81,8 @@ int main(int argc, char* argv[])
 	cout << "Spojeni ok" << endl;
 	return 0;	
 }
+
+
 /**
  * Funkce pro výpis nápovědy
  */
@@ -137,6 +101,7 @@ void printHelp()
 	  "...\n";
 	  cout << HELPMSG;
 }
+
 
 /**
  * Funkce pro kontrolu zadaných parametrů
@@ -183,6 +148,16 @@ int parseParameters(int argc, char* argv[], Param* parametr)
 			parametr->CParamStr = argv[i+1];
 			i++;
 		}
+		else if (((strcmp("-h", argv[i]) == 0) || (strcmp("--help", argv[i]) == 0)) && (argc != 2))
+		{
+			cerr << "Parametr napovedy nebyl zadan samostatne" << endl;
+			return -1;
+		}
+		else if ((strcmp("-h", argv[i]) == 0) || (strcmp("--help", argv[i]) == 0))
+		{
+			printHelp();
+			return -2;
+		}
 		else if (('h' == argv[i][0])&&('t' == argv[i][1])&&('t' == argv[i][2])&&('p' == argv[i][3]))
 		{
 			parametr->adresaParam++;
@@ -212,4 +187,114 @@ int parseParameters(int argc, char* argv[], Param* parametr)
 	cout << "CParam: " << parametr->CParam << " " << "CParamStr: " << parametr->CParamStr << endl;
 	*/
 	return 0;
+}
+
+
+/**
+ * Funkce, která spojí adresu s portem
+ * @param	Param	struktura pro uložený zadaných argumentů
+ * @return  string
+ */
+string adresa(Param* parametr)
+{
+	int portI = 0;
+	int posun = 0;
+	string str, str2;
+	string lomitko = "/";
+	portI = port(parametr, &posun);
+	str.assign(parametr->adresaParamStr,posun,parametr->adresaParamStr.length());
+	int index;
+	str.append(lomitko); // pridani lomitka na konec adresy => zajisti ze lomitko bude vzdy nalezeno 
+	for(unsigned int i = 0; i < str.length(); i++)
+	{
+		if (str[i] == '/')
+		{
+			index = i;
+			break;
+		}
+	}
+
+	string pozadavek;
+	str2.assign(str,0,index); // <host>:<port>
+	pozadavek.assign(str,index,str.length()); // <path>?<searchpart>
+	pozadavek.pop_back(); // odebrani lomitka na konci adresy
+	string adresaStr;
+	adresaStr = portS(index, str2, portI);
+
+	return adresaStr;
+}
+
+
+/**
+ * Funkce, která zjistí číslo portu z prefixu
+ * @param	Param*	ukazatel na strukturu uložených argumentů
+ * @param	int*	ukazatel na int pro uložení velikosti prefixu
+ * @return  int
+ */
+int port(Param* parametr, int* posun)
+{
+	string prefix1 = "http://";
+	string prefix2 = "https://";
+	int portI = 0;
+	size_t found = parametr->adresaParamStr.find(prefix1);
+	if (found!=string::npos)
+	{
+		portI = HTTP;
+		cout << "http nalezeno na " << found << " port: " << portI << endl;
+		*posun = 7;
+	}
+	found = parametr->adresaParamStr.find(prefix2);
+	if (found!=string::npos)
+	{
+		portI = HTTPS;
+		cout << "https nalezeno na " << found << " port: " << portI << endl;
+		*posun = 8;
+	}
+	return portI;
+}
+
+
+/**
+ * Funkce, která zjistí číslo portu z adresy
+ * @param	int		hodnota obsahující index lomítka v adrese
+ * @param 	string 	zadaná adresa
+ * @param	int		port zjistěný z prefixu
+ * @return  string
+ */
+string portS(int index, string str, int portI)
+{
+	int delka = 0;
+	bool dvojtecka = false;
+	for(int i = index-1; i > 0; i--)
+	{
+		if (isdigit(str[i]) == true)
+		{
+			delka++;
+			continue;
+		}
+		else if (str[i] == ':')
+		{
+			dvojtecka = true;
+			break;
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	string portStr;
+	if (dvojtecka == true)
+	{
+		portStr.assign(str,(index-delka),index-1);
+		str.erase(index-delka-1,delka+1);
+	}
+	else
+	{
+		portStr = to_string(portI);
+	}
+	string dvojteckaStr = ":";
+	str.append(dvojteckaStr);
+	str.append(portStr);
+	return str;
 }
