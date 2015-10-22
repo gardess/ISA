@@ -79,6 +79,46 @@ int main(int argc, char* argv[])
 		return 2;
 	}
 	cout << "Spojeni ok" << endl;
+	//----------------------------------------------------------------
+	//char const * request = "GET / HTTP/1.1\x0D\x0AHost: www.verisign.com\x0D\x0A\x43onnection: Close\x0D\x0A\x0D\x0A";
+	//char const * request = "GET / HTTP/1.1\x0D\x0AHost:http://tools.ietf.org/agenda/atom\x0D\x0A\x43onnection: Close\x0D\x0A\x0D\x0A";
+	//char const * request = "GET / HTTP/1.1\x0D\x0AHost: www.w3.org/pub/WWW/TheProject";
+	//char const * request = "GET / HTTP/1.1\r\nHost: www.google.com\r\nConnection: close\r\n\r\n"; // relativne funkcni
+	//char const * request = "GET /agenda/atom HTTP/1.1\r\nHost: tools.ietf.org\r\nConnection: close\r\n\r\n"; // 403 forbidden
+	//char const * request = "GET /headlines.atom HTTP/1.1\r\nHost: www.theregister.co.uk\r\nConnection: close\r\n\r\n"; // SPRAVNY GET REQUEST
+	//////////////////
+	// skladani GET requestu
+	string s1, s2, s3, s4, s5, s6;
+	s1 = "GET ";
+	s2 = "/headlines.atom";
+	s3 = " HTTP/1.1\r\nHost: ";
+	s4 = "www.theregister.co.uk";
+	s5 = "\r\nConnection: close\r\n\r\n";
+	s6 = s1;
+	s6.append(s2);
+	s6.append(s3);
+	s6.append(s4);
+	s6.append(s5);
+	char *request = new char[s6.length()+1];
+	strcpy(request,s6.c_str());
+	//////////////////
+    char r[1024];
+	/* Send the request */
+
+    BIO_write(bio, request, strlen(request));
+
+    /* Read in the response */
+    int p;
+    for(;;)
+    {
+        p = BIO_read(bio, r, 1023);
+        if(p <= 0) break;
+        r[p] = 0;
+        printf("%s", r);
+    }
+	//cout << "Prijato: " << buf << endl; (http://www.theregister.co.uk/headlines.atom)
+	//----------------------------------------------------------------
+	BIO_free_all(bio);
 	return 0;	
 }
 
