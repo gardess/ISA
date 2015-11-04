@@ -338,3 +338,169 @@ string portS(int index, string str, int portI)
 	str.append(portStr);
 	return str;
 }
+
+// Parsování XML
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <libxml/xmlmemory.h>
+#include <libxml/parser.h>
+
+void
+parseStory (xmlDocPtr doc, xmlNodePtr cur) {
+
+	xmlChar *key;
+	cur = cur->xmlChildrenNode;
+	while (cur != NULL) {
+	    if ((!xmlStrcmp(cur->name, (const xmlChar *)"name"))) {
+		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+		    printf("name: %s\n", key);
+		    xmlFree(key);
+ 	    }
+	cur = cur->next;
+	}
+    return;
+}
+
+void
+parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text) {
+
+	xmlChar *key;
+	cur = cur->xmlChildrenNode;
+	while (cur != NULL) {
+	    if ((!xmlStrcmp(cur->name, text))) {
+		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
+		    printf("%s: %s\n",text, key);
+		    xmlFree(key);
+ 	    }
+	cur = cur->next;
+	}
+    return;
+}
+
+void getReference (xmlDocPtr doc, xmlNodePtr cur) {
+
+	xmlChar *uri;
+	cur = cur->xmlChildrenNode;
+	while (cur != NULL) {
+	    if ((!xmlStrcmp(cur->name, (const xmlChar *)"link"))) {
+		    uri = xmlGetProp(cur, "href");
+		    printf("href: %s\n", uri);
+		    xmlFree(uri);
+	    }
+	    cur = cur->next;
+	}
+	return;
+}
+
+static void
+parseDoc(char *docname) {
+
+	xmlDocPtr doc;
+	xmlNodePtr cur;
+	xmlNodePtr temp;
+	xmlNodePtr pom;
+
+	doc = xmlParseFile(docname);
+	
+	if (doc == NULL ) {
+		fprintf(stderr,"Document not parsed successfully. \n");
+		return;
+	}
+	
+	cur = xmlDocGetRootElement(doc);
+	
+	if (cur == NULL) {
+		fprintf(stderr,"empty document\n");
+		xmlFreeDoc(doc);
+		return;
+	}
+	
+	if (xmlStrcmp(cur->name, (const xmlChar *) "feed")) {
+		fprintf(stderr,"document of the wrong type, root node != feed");
+		xmlFreeDoc(doc);
+		return;
+	}
+	////////////////////////
+	// uroven zanoreni 1
+	if ((!xmlStrcmp(cur->name, (const xmlChar *)"feed"))){
+			parseStoryMy (doc, cur, (xmlChar *)"title");
+	}
+	//vyhledavani elementu "author" v rodicovskem uzlu
+	//temp = cur;
+	cur = cur->xmlChildrenNode;
+	//printf("jmeno cur elementu: %s\n", cur->name);
+	while (cur != NULL) {
+		// vyhledavani elementu "author v kořenovém elementu"
+		if ((!xmlStrcmp(cur->name, (const xmlChar *)"author"))){
+			parseStoryMy (doc, cur, (xmlChar *)"name");
+		}
+		// vyhledani elementu "entry" v kořenovém elemnetu
+		else if ((!xmlStrcmp(cur->name, (const xmlChar *)"entry"))){
+			parseStoryMy (doc, cur, (xmlChar *)"title");
+			parseStoryMy (doc, cur, (xmlChar *)"updated"); // Parametr -T
+			//parseStoryMy(doc, cur, (xmlChar *)"link");
+			/*pom = cur;
+			/*temp = cur->xmlChildrenNode;
+			/*xmlChar * uri;
+			while (temp != NULL)
+			{
+				//printf("TEST\n");
+				if ((!xmlStrcmp(temp->name, (const xmlChar *)"link")))
+				{*/
+				//	printf("TEST\n");
+					//printf("LINK: %s\n", xmlNodeGetContent(temp->children));
+					printf("//////////\n");
+					//parseStoryMy(doc, temp, (xmlChar *)"href");
+					getReference (doc, cur);
+					printf("//////////\n");
+			/*	}
+				temp = temp->next;
+			}*/
+
+			temp = cur->xmlChildrenNode;
+			//printf("jmeno temp elementu: %s\n", temp->name);
+			while (temp != NULL)
+			{
+				if ((!xmlStrcmp(temp->name, (const xmlChar *)"author")))
+				{
+					//printf("KONTROLA\n");
+					parseStoryMy(doc, temp, (xmlChar *)"name"); // Parametr -a
+				}
+				temp = temp->next; 
+			}
+			printf("\n");
+		}
+		 
+	cur = cur->next;
+	}
+	/*cur = temp;
+	cur = cur->xmlChildrenNode;
+	while (cur != NULL) {
+		if ((!xmlStrcmp(cur->name, (const xmlChar *)"entry"))){
+			parseStoryMy (doc, cur, (xmlChar *)"title");
+			parseStoryMy (doc, cur, (xmlChar *)"updated");
+		}
+		 
+	cur = cur->next;
+	}*/
+	////////////////////////
+	xmlFreeDoc(doc);
+	return;
+}
+
+int
+main(int argc, char **argv) {
+
+	char *docname;
+		
+	if (argc <= 1) {
+		printf("Usage: %s docname\n", argv[0]);
+		return(0);
+	}
+
+	docname = argv[1];
+	parseDoc (docname);
+
+	return (1);
+}
