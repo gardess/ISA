@@ -2,8 +2,8 @@
 #Autor: Milan Gardáš <xgarda04@stud.fit.vutbr.cz>
 
 CPP=g++
-CFLAGS= -std=c++11 -Wall -Wextra -pedantic -g
-LDFLAGS = -L/usr/local/ssl/lib
+CFLAGS= -std=c++11 -Wall -Wextra -pedantic -g `xml2-config --cflags`
+LDFLAGS = -L/usr/local/ssl/lib `xml2-config --libs`
 LDLIBS = -lssl -lcrypto
 
 all: arfeed
