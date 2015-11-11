@@ -103,7 +103,9 @@ int main(int argc, char* argv[])
 		string pozadav;
 		string adres;
 		string adr = adresa(&novy[a], &pozadav, &adres);
-
+		/*string adr = "www.tools.ietf.org:80";
+		string adres = "/agenda/atom";
+		string pozadav = "www.tools.ietf.org";*/
 		char *prip = new char[adr.length()+1];
 		strcpy(prip,adr.c_str());
 		/*cout << "Adresa: " << prip << endl;
@@ -513,25 +515,31 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 {
 	xmlChar *key;
 	cur = cur->xmlChildrenNode;
+	int nalezl = 0;
 	while (cur != NULL) {
 	    if ((!xmlStrcmp(cur->name, text))) {
 		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 			switch(param)
 		    {
 		    case NAZEV :
-		     	cout << "*** " << key << " ***" << endl; 
+		     	cout << "*** " << key << " ***" << endl;
+		     	nalezl = 1; 
 		    	break;
 		  	case AUTOR :
-		  		cout << "Autor: " << key << endl; 
+		  		cout << "Autor: " << key << endl;
+		  		nalezl = 1; 
 		    	break;
 		  	case AKTUALIZACE :
 		    	cout << "Aktualizace: " << key << endl;
+		    	nalezl = 1;
 		    	break;
 		   	case NAZEVNOVINKY :
 		    	cout << key << endl;
+		    	nalezl = 1;
 		    	break;
 		    case ATOMAUTOR :
 		    	// ulozit do promenne
+		    	nalezl = 1;
 		    	break;
 		   	default :
 		    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
@@ -539,8 +547,26 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 		    //printf("%s: %s\n",text, key);
 		    xmlFree(key);
  	    }
-	cur = cur->next;
+ 	    
+		cur = cur->next;
 	}
+	if (nalezl == 0)
+ 	{
+ 	   	switch(param)
+	    {
+	  	case AUTOR :
+	  		cout << "Autor: " << "No author" << endl; 
+	    	break;
+	  	case AKTUALIZACE :
+	    	cout << "Aktualizace: " << "Nebyla zadana" << endl;
+	    	break;
+	    case ATOMAUTOR :
+	    	// ulozit do promenne
+	    	break;
+	 	default :
+	    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
+	   	}
+ 	}
     return;
 }
 
@@ -614,6 +640,7 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	cur = cur->xmlChildrenNode;
 	//printf("jmeno cur elementu: %s\n", cur->name);
 	int iterace = 0;
+	int nalezl = 0;
 	while(cur != NULL)
 	{
 		//iterace++;
@@ -649,8 +676,14 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 					{
 						// volani funkce pro vypis autora, pouze pokud je zadan parametr -a
 						parseStoryMy(doc, temp, (xmlChar *)"name", AUTOR); // Parametr -a
+						nalezl = 1;
 					}
 					temp = temp->next; 
+				}
+				if (nalezl == 0)
+				{
+				cout << "Autor: " << "No author" << endl;
+				nalezl = 1;
 				}
 			}
 			// mezera mezi jednotlivými záznamy
@@ -663,7 +696,8 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 		if ((parametr->lParam == 1) && (iterace == 1))
 		{
 			break;
-		}	 
+		}
+	nalezl = 0;	 
 	cur = cur->next;
 	}
 	xmlFreeDoc(doc);
