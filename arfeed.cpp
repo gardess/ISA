@@ -40,9 +40,9 @@ void printHelp();
 int parseParameters(int argc, char* argv[], Param* parametr);
 int pocetRadku (string cesta);
 int zpracovaniSouboru(string cesta, string * radky);
-string adresa(string* zdroj, string* pozadav, string* adre);
+string adresa(string* zdroj, string* pozadav, string* adre, int* portC);
 int port(string* zdroj, int* posun);
-string portS(int index, string str, int portI, string* adre);
+string portS(int index, string str, int portI, string* adre, int* portC);
 void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
 void getReference (xmlNodePtr cur);
 static void parseDoc(char *docname, int xmlVelikost, Param* parametr);
@@ -52,8 +52,6 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
 
 int main(int argc, char* argv[])
 {
-	/*ofstream errorFile( "EF" ); 
-	cerr.rdbuf( errorFile.rdbuf() ); */
 	// Zpracovani vstupnich parametru
 	Param* parametr = new Param;
 	int par = parseParameters(argc, argv, parametr);
@@ -95,26 +93,26 @@ int main(int argc, char* argv[])
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	SSL_library_init();
-	//cout << ret <<endl;
-	// -------------------------------------------------------------------------
-    // Cyklus ktery ridi cely program
+
+    // Cyklus, ktery ridi cely program
 	for (int a = 0; a < ret; a++)
 	{
 		string pozadav;
 		string adres;
-		string adr = adresa(&novy[a], &pozadav, &adres);
+		int portC;
+		string adr = adresa(&novy[a], &pozadav, &adres, &portC);
 		char *prip = new char[adr.length()+1];
 		strcpy(prip,adr.c_str());
-		//--------------------------------------------------------------------------------------------------
+		//cout<< "PortC: " << portC << endl;
 		// Pripojeni
-		/*if (portI == HTTP)
+		if (portC == HTTP)
 		{
 			connectHTTP(prip, pozadav, adres, parametr);
 		}
-		else if (portI == HTTPS)
-		{*/
+		else if (portC == HTTPS)
+		{
 			connectHTTPS(prip, pozadav, adres, parametr);
-		//}
+		}
 		delete[] prip;
 
 		if (a+1 == ret)
@@ -330,7 +328,7 @@ int zpracovaniSouboru(string cesta, string * radky)
  * @param	Param	struktura pro uložený zadaných argumentů
  * @return  string
  */
-string adresa(string* zdroj, string* pozadav, string* adre)
+string adresa(string* zdroj, string* pozadav, string* adre, int* portC)
 {
 	int portI = 0;
 	int posun = 0;
@@ -356,7 +354,7 @@ string adresa(string* zdroj, string* pozadav, string* adre)
 	//pozadav = new string[pozadavek.length()];
 	pozadav->append(pozadavek);
 	string adresaStr;
-	adresaStr = portS(index, str2, portI, adre);
+	adresaStr = portS(index, str2, portI, adre, portC);
 	/*cout << "-------------------------------------------------------------------" << endl;
 	cout << "AdresaStr: " << adresaStr << endl;
 	cout << "Pozadavek: " << pozadavek << endl;
@@ -369,7 +367,7 @@ string adresa(string* zdroj, string* pozadav, string* adre)
  * Funkce, která zjistí číslo portu z prefixu
  * @param	Param*	ukazatel na strukturu uložených argumentů
  * @param	int*	ukazatel na int pro uložení velikosti prefixu
- * @return  int
+ * @return  int 	cislo portu
  */
 int port(string* zdroj, int* posun)
 {
@@ -395,16 +393,17 @@ int port(string* zdroj, int* posun)
 
 
 /**
- * Funkce, která zjistí číslo portu z adresy
+ * Funkce, která zjistí číslo portu z adresy a spoji adresu s cislem portem
  * @param	int		hodnota obsahující index lomítka v adrese
  * @param 	string 	zadaná adresa
  * @param	int		port zjistěný z prefixu
- * @return  string
+ * @return  string 	
  */
-string portS(int index, string str, int portI, string* adre)
+string portS(int index, string str, int portI, string* adre, int* portC)
 {
 	int delka = 0;
 	bool dvojtecka = false;
+	// zjisteni zda adresa obsahuje cislo portu
 	for(int i = index-1; i > 0; i--)
 	{
 		if (isdigit(str[i]) == true)
@@ -424,6 +423,7 @@ string portS(int index, string str, int portI, string* adre)
 	}
 
 	string portStr;
+	// priprava portu pro pridani do adresy
 	if (dvojtecka == true)
 	{
 		portStr.assign(str,(index-delka),index-1);
@@ -433,14 +433,16 @@ string portS(int index, string str, int portI, string* adre)
 	{
 		portStr = to_string(portI);
 	}
+	string::size_type vel;
+	*portC = stoi(portStr, &vel);
+	/*cout << "portStr: " << portStr << endl;
+	cout<< "portI: "<<portI <<endl;*/
 	string dvojteckaStr = ":";
 	//cout << "Str: " << str << endl;
 	adre->append(str);
+	// spojeni adresy s cislem portu
 	str.append(dvojteckaStr);
 	str.append(portStr);
-	/*cout << "-------------------------------------------------------------------" << endl;
-	cout << "Str: " << str << endl;
-	cout << "-------------------------------------------------------------------" << endl;*/
 	return str;
 }
 
@@ -677,16 +679,19 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	unsigned int delkaHlavicky = 0;
 	for(unsigned int i = 0; i < stranka.length(); i++)
 	{
-		if ((stranka[i] == '<') && (stranka[i+1] == '?') && (stranka[i+2] == 'x') && 
-		(stranka[i+3] == 'm') && (stranka[i+4] == 'l') && (stranka[i+5] == ' ') && 
-		(stranka[i+6] == 'v') && (stranka[i+7] == 'e') && (stranka[i+8] == 'r') && 
-		(stranka[i+9] == 's') && (stranka[i+10] == 'i') && (stranka[i+11] == 'o') && 
-		(stranka[i+12] == 'n') && (stranka[i+13] == '='))
+		if ((stranka[i] == '<') && (stranka[i+1] == 'f') && (stranka[i+2] == 'e') && 
+        (stranka[i+3] == 'e') && (stranka[i+4] == 'd') && (stranka[i+5] == ' ') && 
+        (stranka[i+6] == 'x') && (stranka[i+7] == 'm') && (stranka[i+8] == 'l') && 
+        (stranka[i+9] == 'n') && (stranka[i+10] == 's') && (stranka[i+11] == '='))
 		{
 			delkaHlavicky = i;
 			break;
 		}
 	}
+
+	//cout << stranka << endl;
+	// Zjistena zda je 200 nebo 301
+
 	stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
 	int xmlVelikost = stranka.length() + 1;
 	char *xmldoc = new char[xmlVelikost];
@@ -706,28 +711,10 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
 
     int p;
 
-    string s1, s2, s3, s4, s5, s6;
-    s1 = "GET ";
-    s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
-    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
-    s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
-    s5 = "\r\nConnection: close\r\n\r\n";
-    s6 = s1;
-    s6.append(s2);
-    s6.append(s3);
-    s6.append(s4);
-    s6.append(s5);
-    char *request = new char[s6.length()+1];
-    strcpy(request,s6.c_str());
-
-    //char * request = "GET /agenda/atom HTTP/1.0\x0D\x0AUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\x0D\x0AHost: tools.ietf.org\x0D\x0A\x43onnection: Close\x0D\x0A\x0D\x0A";
+    
     char r[1024];
 
-    // Set up the library 
-    /*SSL_library_init();
-    ERR_load_BIO_strings();
-    SSL_load_error_strings();*/
-    //OpenSSL_add_all_algorithms();
+
 
     // Set up the SSL context 
 
@@ -743,6 +730,7 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
             fprintf(stderr, "Error loading trust store\n");
             ERR_print_errors_fp(stderr);
             SSL_CTX_free(ctx);
+            delete[] cFile;
             return -5;
         }
         delete[] cFile;
@@ -755,6 +743,7 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
         fprintf(stderr, "Error loading trust store\n");
         ERR_print_errors_fp(stderr);
         SSL_CTX_free(ctx);
+        delete[] CDirectory;
         return -5;
     }
     delete[] CDirectory;
@@ -778,18 +767,35 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
         ERR_print_errors_fp(stderr);
         BIO_free_all(bio);
         SSL_CTX_free(ctx);
-        return 0;
+        return -6;
     }
 
     //Check the certificate 
 
     if(SSL_get_verify_result(ssl) != X509_V_OK)
     {
-        fprintf(stderr, "Certificate verification error: %ld\n", SSL_get_verify_result(ssl));
+    	string zdroj(prip); 
+    	zdroj.erase(zdroj.end()-4, zdroj.end());
+    	cerr << "Chyba: nepodarilo se overit platnost certifikatu serveru " << zdroj << endl;
+        //fprintf(stderr, "Certificate verification error: %ld\n", SSL_get_verify_result(ssl));
         BIO_free_all(bio);
         SSL_CTX_free(ctx);
-        return 0;
+        return -6;
     }
+
+    string s1, s2, s3, s4, s5, s6;
+    s1 = "GET ";
+    s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
+    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
+    s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
+    s5 = "\r\nConnection: close\r\n\r\n";
+    s6 = s1;
+    s6.append(s2);
+    s6.append(s3);
+    s6.append(s4);
+    s6.append(s5);
+    char *request = new char[s6.length()+1];
+    strcpy(request,s6.c_str());
 
     // Send the request 
 
