@@ -46,12 +46,14 @@ string portS(int index, string str, int portI, string* adre);
 void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
 void getReference (xmlNodePtr cur);
 static void parseDoc(char *docname, int xmlVelikost, Param* parametr);
+int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
+int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
 
 
 int main(int argc, char* argv[])
 {
-	ofstream errorFile( "EF" ); 
-	cerr.rdbuf( errorFile.rdbuf() ); 
+	/*ofstream errorFile( "EF" ); 
+	cerr.rdbuf( errorFile.rdbuf() ); */
 	// Zpracovani vstupnich parametru
 	Param* parametr = new Param;
 	int par = parseParameters(argc, argv, parametr);
@@ -88,103 +90,41 @@ int main(int argc, char* argv[])
 		ret = 1;
 		novy[0].append(parametr->adresaParamStr);
 	}
-/*
-	for(int i = 0; i < ret; i++)
-    {
-		cout << novy[i] << endl;
-    }*/
+
+	// inicializace openSSL
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	SSL_library_init();
-    // -------------------------------------------------------------------------
+	//cout << ret <<endl;
+	// -------------------------------------------------------------------------
     // Cyklus ktery ridi cely program
 	for (int a = 0; a < ret; a++)
 	{
 		string pozadav;
 		string adres;
 		string adr = adresa(&novy[a], &pozadav, &adres);
-		/*string adr = "www.tools.ietf.org:80";
-		string adres = "/agenda/atom";
-		string pozadav = "www.tools.ietf.org";*/
 		char *prip = new char[adr.length()+1];
 		strcpy(prip,adr.c_str());
-		/*cout << "Adresa: " << prip << endl;
-		cout << "PozadavekMain: " << pozadav << endl;
-		cout << "Adresabezportu: " << adres << endl;*/
 		//--------------------------------------------------------------------------------------------------
 		// Pripojeni
-		
-		BIO * bio;
-		bio = BIO_new_connect(prip);
+		/*if (portI == HTTP)
+		{
+			connectHTTP(prip, pozadav, adres, parametr);
+		}
+		else if (portI == HTTPS)
+		{*/
+			connectHTTPS(prip, pozadav, adres, parametr);
+		//}
 		delete[] prip;
-		if (bio == NULL)
+
+		if (a+1 == ret)
 		{
-			cerr << "CHYBA" << endl;
-			return -1;
+			
 		}
-
-		if (BIO_do_connect(bio) <= 0)
+		else
 		{
-			cerr << "Chyba spojeni" << endl;
-			return -2;
+			cout << "" << endl;
 		}
-
-		// skladani GET requestu 
-		string s1, s2, s3, s4, s5, s6;
-		s1 = "GET ";
-		s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
-		s3 = " HTTP/1.0\r\nHost: ";
-		s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
-		s5 = "\r\nConnection: close\r\n\r\n";
-		s6 = s1;
-		s6.append(s2);
-		s6.append(s3);
-		s6.append(s4);
-		s6.append(s5);
-		char *request = new char[s6.length()+1];
-		strcpy(request,s6.c_str());
-		//////////////////
-	    char r[1024];
-		/* Send the request */
-	    BIO_write(bio, request, strlen(request));
-	    /* Read in the response */
-	    int p;
-	    string stranka = "";
-	    for(;;)
-	    {
-	        p = BIO_read(bio, r, 1023);
-	        if(p <= 0) break;
-	        r[p] = 0;
-	        stranka.append(r);
-
-	    }
-
-		BIO_free_all(bio);
-		delete[] request;
-		
-		//cout << stranka << endl;
-
-		unsigned int delkaHlavicky = 0;
-		for(unsigned int i = 0; i < stranka.length(); i++)
-		{
-			if ((stranka[i] == '<') && (stranka[i+1] == '?') && (stranka[i+2] == 'x') && 
-			(stranka[i+3] == 'm') && (stranka[i+4] == 'l') && (stranka[i+5] == ' ') && 
-			(stranka[i+6] == 'v') && (stranka[i+7] == 'e') && (stranka[i+8] == 'r') && 
-			(stranka[i+9] == 's') && (stranka[i+10] == 'i') && (stranka[i+11] == 'o') && 
-			(stranka[i+12] == 'n') && (stranka[i+13] == '='))
-			{
-				delkaHlavicky = i;
-				break;
-			}
-		}
-		stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
-		int xmlVelikost = stranka.length() + 1;
-		char *xmldoc = new char[xmlVelikost];
-		strcpy(xmldoc,stranka.c_str());
-		//cout << stranka << endl;
-		//cout << xmldoc << endl;
-		parseDoc (xmldoc, xmlVelikost, parametr);
-		delete[] xmldoc;
 	}
 	delete[] novy;
 	delete parametr;
@@ -297,6 +237,7 @@ int parseParameters(int argc, char* argv[], Param* parametr)
 	}
 	if (parametr->CParam == 0)
 	{
+		parametr->CParam++;
 		parametr->CParamStr.append("/etc/ssl/certs");
 	}
 	return 0;
@@ -515,7 +456,6 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 {
 	xmlChar *key;
 	cur = cur->xmlChildrenNode;
-	int nalezl = 0;
 	while (cur != NULL) {
 	    if ((!xmlStrcmp(cur->name, text))) {
 		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
@@ -523,50 +463,26 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 		    {
 		    case NAZEV :
 		     	cout << "*** " << key << " ***" << endl;
-		     	nalezl = 1; 
 		    	break;
 		  	case AUTOR :
 		  		cout << "Autor: " << key << endl;
-		  		nalezl = 1; 
 		    	break;
 		  	case AKTUALIZACE :
 		    	cout << "Aktualizace: " << key << endl;
-		    	nalezl = 1;
 		    	break;
 		   	case NAZEVNOVINKY :
 		    	cout << key << endl;
-		    	nalezl = 1;
 		    	break;
 		    case ATOMAUTOR :
-		    	// ulozit do promenne
-		    	nalezl = 1;
 		    	break;
 		   	default :
 		    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
 		   	}
 		    //printf("%s: %s\n",text, key);
 		    xmlFree(key);
- 	    }
- 	    
+ 	    }  
 		cur = cur->next;
 	}
-	if (nalezl == 0)
- 	{
- 	   	switch(param)
-	    {
-	  	case AUTOR :
-	  		cout << "Autor: " << "No author" << endl; 
-	    	break;
-	  	case AKTUALIZACE :
-	    	cout << "Aktualizace: " << "Nebyla zadana" << endl;
-	    	break;
-	    case ATOMAUTOR :
-	    	// ulozit do promenne
-	    	break;
-	 	default :
-	    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
-	   	}
- 	}
     return;
 }
 
@@ -686,10 +602,17 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 				nalezl = 1;
 				}
 			}
-			// mezera mezi jednotlivými záznamy
-			if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
+			if (cur->next == NULL) // 
 			{
-				cout << "" << endl; // mezera mezi jednotlivymi novinkami bez parametru tu nema co delat !!
+
+			}
+			else if (parametr->lParam == 1)
+			{
+
+			}
+			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
+			{
+				cout << "" << endl;
 			}
 		}
 		// pro zobrazeni pouze prvni novinky ("feedu")
@@ -702,4 +625,214 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	}
 	xmlFreeDoc(doc);
 	return;
+}
+
+
+int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
+{
+	BIO * bio;
+	bio = BIO_new_connect(prip);
+	if (bio == NULL)
+	{
+		cerr << "CHYBA" << endl;
+		return -1;
+	}
+	if (BIO_do_connect(bio) <= 0)
+	{
+		cerr << "Chyba spojeni" << endl;
+		return -2;
+	}
+
+	// skladani GET requestu 
+	string s1, s2, s3, s4, s5, s6;
+	s1 = "GET ";
+	s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
+	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
+	s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
+	s5 = "\r\nConnection: close\r\n\r\n";
+	s6 = s1;
+	s6.append(s2);
+	s6.append(s3);
+	s6.append(s4);
+	s6.append(s5);
+	char *request = new char[s6.length()+1];
+	strcpy(request,s6.c_str());
+    char r[1024];
+	/* Send the request */
+    BIO_write(bio, request, strlen(request));
+    /* Read in the response */
+    int p;
+    string stranka = "";
+    for(;;)
+    {
+        p = BIO_read(bio, r, 1023);
+        if(p <= 0) break;
+        r[p] = 0;
+       	stranka.append(r);
+	}
+	BIO_free_all(bio);
+	delete[] request;
+	
+	// Nalezení začátku xml z Get požadavku
+	unsigned int delkaHlavicky = 0;
+	for(unsigned int i = 0; i < stranka.length(); i++)
+	{
+		if ((stranka[i] == '<') && (stranka[i+1] == '?') && (stranka[i+2] == 'x') && 
+		(stranka[i+3] == 'm') && (stranka[i+4] == 'l') && (stranka[i+5] == ' ') && 
+		(stranka[i+6] == 'v') && (stranka[i+7] == 'e') && (stranka[i+8] == 'r') && 
+		(stranka[i+9] == 's') && (stranka[i+10] == 'i') && (stranka[i+11] == 'o') && 
+		(stranka[i+12] == 'n') && (stranka[i+13] == '='))
+		{
+			delkaHlavicky = i;
+			break;
+		}
+	}
+	stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
+	int xmlVelikost = stranka.length() + 1;
+	char *xmldoc = new char[xmlVelikost];
+	strcpy(xmldoc,stranka.c_str());
+	// Zpracování xml
+	parseDoc (xmldoc, xmlVelikost, parametr);
+	delete[] xmldoc;
+	return 0;
+}
+
+
+int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
+{
+    BIO * bio;
+    SSL * ssl;
+    SSL_CTX * ctx;
+
+    int p;
+
+    string s1, s2, s3, s4, s5, s6;
+    s1 = "GET ";
+    s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
+    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
+    s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
+    s5 = "\r\nConnection: close\r\n\r\n";
+    s6 = s1;
+    s6.append(s2);
+    s6.append(s3);
+    s6.append(s4);
+    s6.append(s5);
+    char *request = new char[s6.length()+1];
+    strcpy(request,s6.c_str());
+
+    //char * request = "GET /agenda/atom HTTP/1.0\x0D\x0AUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\x0D\x0AHost: tools.ietf.org\x0D\x0A\x43onnection: Close\x0D\x0A\x0D\x0A";
+    char r[1024];
+
+    // Set up the library 
+    /*SSL_library_init();
+    ERR_load_BIO_strings();
+    SSL_load_error_strings();*/
+    //OpenSSL_add_all_algorithms();
+
+    // Set up the SSL context 
+
+    ctx = SSL_CTX_new(SSLv23_client_method());
+
+    // Load the trust store 
+    if (parametr->cParam == 1)
+    {
+    	char *cFile = new char[parametr->cParamStr.length()+1];
+		strcpy(cFile,parametr->cParamStr.c_str());
+        if(! SSL_CTX_load_verify_locations(ctx, cFile, NULL))
+        {
+            fprintf(stderr, "Error loading trust store\n");
+            ERR_print_errors_fp(stderr);
+            SSL_CTX_free(ctx);
+            return -5;
+        }
+        delete[] cFile;
+    }
+
+    char *CDirectory = new char[parametr->CParamStr.length()+1];
+	strcpy(CDirectory,parametr->CParamStr.c_str());
+    if(! SSL_CTX_load_verify_locations(ctx, NULL, CDirectory))
+    {
+        fprintf(stderr, "Error loading trust store\n");
+        ERR_print_errors_fp(stderr);
+        SSL_CTX_free(ctx);
+        return -5;
+    }
+    delete[] CDirectory;
+
+    // Setup the connection 
+
+    bio = BIO_new_ssl_connect(ctx);
+
+    // Set the SSL_MODE_AUTO_RETRY flag 
+
+    BIO_get_ssl(bio, & ssl);
+    SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
+
+    // Create and setup the connection 
+
+    BIO_set_conn_hostname(bio, prip);
+
+    if(BIO_do_connect(bio) <= 0)
+    {
+        fprintf(stderr, "Error attempting to connect\n");
+        ERR_print_errors_fp(stderr);
+        BIO_free_all(bio);
+        SSL_CTX_free(ctx);
+        return 0;
+    }
+
+    //Check the certificate 
+
+    if(SSL_get_verify_result(ssl) != X509_V_OK)
+    {
+        fprintf(stderr, "Certificate verification error: %ld\n", SSL_get_verify_result(ssl));
+        BIO_free_all(bio);
+        SSL_CTX_free(ctx);
+        return 0;
+    }
+
+    // Send the request 
+
+    BIO_write(bio, request, strlen(request));
+
+    //Read in the response 
+    string stranka = "";
+    for(;;)
+    {
+        p = BIO_read(bio, r, 1023);
+        if(p <= 0) break;
+        r[p] = 0;
+        //printf("%s", r);
+        stranka.append(r);
+    }
+    /*cout << "---------------------------------------------------" << endl;
+    cout << stranka << endl;
+    cout << "---------------------------------------------------" << endl;*/
+    // Close the connection and free the context 
+
+    BIO_free_all(bio);
+    SSL_CTX_free(ctx);
+    delete[] request;
+
+    // Nalezení začátku xml z Get požadavku
+    unsigned int delkaHlavicky = 0;
+    for(unsigned int i = 0; i < stranka.length(); i++)
+    {
+        if ((stranka[i] == '<') && (stranka[i+1] == 'f') && (stranka[i+2] == 'e') && 
+        (stranka[i+3] == 'e') && (stranka[i+4] == 'd') && (stranka[i+5] == ' ') && 
+        (stranka[i+6] == 'x') && (stranka[i+7] == 'm') && (stranka[i+8] == 'l') && 
+        (stranka[i+9] == 'n') && (stranka[i+10] == 's') && (stranka[i+11] == '='))
+        {
+            delkaHlavicky = i;
+            break;
+        }
+    }
+    stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
+    int xmlVelikost = stranka.length() + 1;
+    char *xmldoc = new char[xmlVelikost];
+    strcpy(xmldoc,stranka.c_str());
+    // Zpracování xml
+    parseDoc (xmldoc, xmlVelikost, parametr);
+    delete[] xmldoc;
+    return 0;
 }
