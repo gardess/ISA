@@ -48,6 +48,7 @@ void getReference (xmlNodePtr cur);
 static void parseDoc(char *docname, int xmlVelikost, Param* parametr);
 int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
 int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
+int navratovyKod(string stranka, Param* parametr);
 
 
 int main(int argc, char* argv[])
@@ -652,11 +653,12 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
 	s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
 	s5 = "\r\nConnection: close\r\n\r\n";
-	s6 = s1;
+	s6.clear();
+	s6.append(s1);
 	s6.append(s2);
 	s6.append(s3);
 	s6.append(s4);
-	s6.append(s5);
+	s6.append(s5); 
 	char *request = new char[s6.length()+1];
 	strcpy(request,s6.c_str());
     char r[1024];
@@ -675,6 +677,19 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	BIO_free_all(bio);
 	delete[] request;
 	
+	// slouzi ke zjisteni zda byl navratovy kod 200 OK nebo 301 Moved Permanently nebo jiný
+    int kod = navratovyKod(stranka, parametr);
+	if (kod == 1) // presmerovani
+	{
+		// dealokace
+		return 0;
+	}
+	else if (kod == -7) // chyba
+	{
+		// dealokace
+		return -7; 
+	}
+
 	// Nalezení začátku xml z Get požadavku
 	unsigned int delkaHlavicky = 0;
 	for(unsigned int i = 0; i < stranka.length(); i++)
@@ -691,6 +706,7 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 
 	//cout << stranka << endl;
 	// Zjistena zda je 200 nebo 301
+
 
 	stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
 	int xmlVelikost = stranka.length() + 1;
@@ -820,6 +836,21 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
     SSL_CTX_free(ctx);
     delete[] request;
 
+    //cout << stranka << endl;
+
+    /////////////////////////////////////////////
+    int kod = navratovyKod(stranka, parametr);
+	if (kod == 1) // presmerovani
+	{
+		// dealokace
+		return 0;
+	}
+	else if (kod == -7) // chyba
+	{
+		// dealokace
+		return -7; 
+	}
+	/////////////////////////////////////////////
     // Nalezení začátku xml z Get požadavku
     unsigned int delkaHlavicky = 0;
     for(unsigned int i = 0; i < stranka.length(); i++)
@@ -833,6 +864,7 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
             break;
         }
     }
+    //cout << stranka << endl;
     stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
     int xmlVelikost = stranka.length() + 1;
     char *xmldoc = new char[xmlVelikost];
@@ -841,4 +873,65 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
     parseDoc (xmldoc, xmlVelikost, parametr);
     delete[] xmldoc;
     return 0;
+}
+
+
+int navratovyKod(string stranka, Param* parametr)
+{
+	string ok = "200 OK";
+	string moved = "301 Moved Permanently";
+	string location = "Location: ";
+	string radek = "\n";
+	size_t found;
+	found = stranka.find(ok);
+	if (found != string::npos)
+	{
+		return 0;
+	}
+	found = stranka.find(moved);
+	if (found != string::npos)
+	{
+		found = stranka.find(location);
+		if (found != string::npos)
+		{
+			stranka.erase(stranka.begin(), stranka.begin()+found+location.length());
+			found = stranka.find(radek);
+			if (found != string::npos)
+			{
+				stranka.erase(stranka.begin()+found-1, stranka.end()); // adresa kam se presunujeme
+				// zavolat connect funkci
+				string* novy = new string[1]; 
+				novy->append(stranka);
+				string pozadav;
+				string adres;
+				int portC;
+				string adr = adresa(&novy[0], &pozadav, &adres, &portC);
+				char *prip = new char[adr.length()+1];
+				strcpy(prip,adr.c_str());
+				/*cout<< "PortC: " << portC << endl;
+				cout << "TEST" << endl;
+				cout << "novy: " << novy[0]<< endl;
+				cout << "pozadav:" << pozadav << endl;
+				cout << "adres: " << adres << endl;
+				cout << "portC: " << portC << endl;
+				cout << "prip: " << prip << endl;*/
+				// Pripojeni
+				if (portC == HTTP)
+				{
+					connectHTTP(prip, pozadav, adres, parametr);
+				}
+				else if (portC == HTTPS)
+				{
+					connectHTTPS(prip, pozadav, adres, parametr);
+				}
+				delete[] prip;
+				delete[] novy;
+				return 1;
+			}
+			return -7;
+		}
+		return -7;
+	}
+	//cout << stranka << endl;
+	return -7;
 }
