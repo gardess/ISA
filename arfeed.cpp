@@ -69,17 +69,20 @@ int main(int argc, char* argv[])
 		int rad = pocetRadku(parametr->fParamStr);
 		if (rad == -3)
 		{
+			delete parametr;
 			return -3;
 		}
 		else if (rad == 0)
 		{
 			cerr << "Zadaný soubor neobsahuje zadny validni radek nebo je prazdny." << endl;
+			delete parametr;
 			return -4;
 		}
 		novy = new string[rad];
 		ret = zpracovaniSouboru(parametr->fParamStr, novy);
 		if (ret == -3)
 		{
+			delete parametr;
 			return -3;
 		}
 	}
@@ -116,6 +119,7 @@ int main(int argc, char* argv[])
 		}
 		delete[] prip;
 
+		// reseni mezery mezi jednotlivymi zdroji
 		if (a+1 == ret)
 		{
 			
@@ -459,27 +463,29 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 {
 	xmlChar *key;
 	cur = cur->xmlChildrenNode;
-	while (cur != NULL) {
-	    if ((!xmlStrcmp(cur->name, text))) {
+	while (cur != NULL) 
+	{
+	    if ((!xmlStrcmp(cur->name, text))) 
+	    {
 		    key = xmlNodeListGetString(doc, cur->xmlChildrenNode, 1);
 			switch(param)
 		    {
-		    case NAZEV :
-		     	cout << "*** " << key << " ***" << endl;
-		    	break;
-		  	case AUTOR :
-		  		cout << "Autor: " << key << endl;
-		    	break;
-		  	case AKTUALIZACE :
-		    	cout << "Aktualizace: " << key << endl;
-		    	break;
-		   	case NAZEVNOVINKY :
-		    	cout << key << endl;
-		    	break;
-		    case ATOMAUTOR :
-		    	break;
-		   	default :
-		    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
+			    case NAZEV :
+			     	cout << "*** " << key << " ***" << endl;
+			    	break;
+			  	case AUTOR :
+			  		cout << "Autor: " << key << endl;
+			    	break;
+			  	case AKTUALIZACE :
+			    	cout << "Aktualizace: " << key << endl;
+			    	break;
+			   	case NAZEVNOVINKY :
+			    	cout << key << endl;
+			    	break;
+			    case ATOMAUTOR :
+			    	break;
+			   	default :
+			    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
 		   	}
 		    //printf("%s: %s\n",text, key);
 		    xmlFree(key);
@@ -498,8 +504,10 @@ void getReference (xmlNodePtr cur)
 {
 	xmlChar *uri;
 	cur = cur->xmlChildrenNode;
-	while (cur != NULL) {
-	    if ((!xmlStrcmp(cur->name, (const xmlChar *)"link"))) {
+	while (cur != NULL) 
+	{
+	    if ((!xmlStrcmp(cur->name, (const xmlChar *)"link"))) 
+	    {
 		    uri = xmlGetProp(cur, (xmlChar *)"href");
 		    cout << "URL: " << uri << endl;
 		    xmlFree(uri);
@@ -521,6 +529,7 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	xmlDocPtr doc;
 	xmlNodePtr cur;
 	xmlNodePtr temp;
+	xmlNodePtr pocitadlo;
 
 	//doc = xmlParseFile(docname); // pravděpodobně bude změna na xmlParseMemory
 	doc = xmlParseMemory(docname, xmlVelikost);
@@ -557,6 +566,21 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	//vyhledavani elementu "author" v rodicovskem uzlu
 	//temp = cur;
 	cur = cur->xmlChildrenNode;
+	pocitadlo = cur;
+	int s = 0;
+	//cout << "----------------------------------------------------------------" << endl;
+	//cout << "cur: " << cur << endl;
+	//cout << "poc: " << pocitadlo << endl;
+	while(pocitadlo != NULL)
+	{
+		if ((!xmlStrcmp(pocitadlo->name, (const xmlChar *)"entry")))
+		{
+			s++;
+		}
+		//cout << "hodnota s: " << s << endl;
+		pocitadlo = pocitadlo->next;
+	}
+	//cout << "----------------------------------------------------------------" << endl;
 	//printf("jmeno cur elementu: %s\n", cur->name);
 	int iterace = 0;
 	int nalezl = 0;
@@ -583,7 +607,7 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 			if (parametr->uParam == 1)
 			{
 			// volani funkce pro ziskani parametru z xml tagu a jeho nasledne vypsani
-			getReference (cur);
+				getReference (cur);
 			}
 			if (parametr->aParam == 1)
 			{
@@ -605,7 +629,39 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 				nalezl = 1;
 				}
 			}
-			if (cur->next == NULL) // 
+			if (parametr->lParam == 1) // nevypisuji mezeru protoze je pouze jeden zaznam
+			{
+				;
+			}
+			else if (iterace == s)
+			{
+				; // posledni zaznam nevypisovat mezeru
+			}
+			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
+			{
+				cout << "" << endl;
+			}
+			/*{
+				if (cur->next == NULL)
+				{
+					cout << "NULL" << endl;
+				}
+				else 
+				{
+					cout << "" << endl;
+				}
+			}*/
+			// je vice zaznamu je potreba vypsat mezeru - kontrola posledniho
+			/*else if ((cur->next != NULL) && ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1)))
+			{
+				cout << "" << endl;
+			}
+			// je vice zaznamu a neni posledni
+			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
+			{
+				//cout << "" << endl;
+			}*/
+			/*if (cur->next == NULL) // 
 			{
 
 			}
@@ -616,7 +672,7 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
 			{
 				cout << "" << endl;
-			}
+			}*/
 		}
 		// pro zobrazeni pouze prvni novinky ("feedu")
 		if ((parametr->lParam == 1) && (iterace == 1))
@@ -626,6 +682,8 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	nalezl = 0;	 
 	cur = cur->next;
 	}
+	/*cout << "hodnota i: " << iterace << endl;
+	cout << "hodnota s: " << s << endl;*/
 	xmlFreeDoc(doc);
 	return;
 }
@@ -648,9 +706,9 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 
 	// skladani GET requestu 
 	string s1, s2, s3, s4, s5, s6;
-	s1 = "GET ";
-	s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
-	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
+	s1 = "GET ";//User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)
+	s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";//
+	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
 	s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
 	s5 = "\r\nConnection: close\r\n\r\n";
 	s6.clear();
@@ -676,7 +734,7 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	}
 	BIO_free_all(bio);
 	delete[] request;
-	
+	//cout << stranka << endl;
 	// slouzi ke zjisteni zda byl navratovy kod 200 OK nebo 301 Moved Permanently nebo jiný
     int kod = navratovyKod(stranka, parametr);
 	if (kod == 1) // presmerovani
@@ -802,7 +860,7 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
     string s1, s2, s3, s4, s5, s6;
     s1 = "GET ";
     s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
-    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)\r\nHost: ";
+    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
     s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
     s5 = "\r\nConnection: close\r\n\r\n";
     s6 = s1;
