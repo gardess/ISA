@@ -54,3 +54,5 @@ static void zpracujXML(char *docname, int xmlVelikost, Param* parametr);
 int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
 int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
 int navratovyKod(string stranka, Param* parametr);
+string pozadavek(string pozadav, string adres);
+int zpracujStranku(string stranka, Param* parametr);

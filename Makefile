@@ -15,7 +15,7 @@ clean:
 	rm -f arfeed xgarda04.tar 
 
 tar: *.cpp *.h Makefile
-	tar -cvf xgarda04.tar *.cpp *.h Makefile
+	tar -cvf xgarda04.tar *.cpp *.h Makefile README
 
 commit: clean
 	git commit -a

@@ -8,7 +8,6 @@
 
 #include "arfeed.h"
 
-using namespace std;
 
 int main(int argc, char* argv[])
 {
@@ -633,21 +632,10 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 		return -2;
 	}
 
-	// Skládání GET requestu 
-	string s1, s2, s3, s4, s5, s6;
-	s1 = "GET ";
-	s2 = pozadav;
-	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
-	s4 = adres;
-	s5 = "\r\nConnection: close\r\n\r\n";
-	s6.clear();
-	s6.append(s1);
-	s6.append(s2);
-	s6.append(s3);
-	s6.append(s4);
-	s6.append(s5); 
-	char *request = new char[s6.length()+1];
-	strcpy(request,s6.c_str());
+	// Složení GET requestu
+	string grequest = pozadavek(pozadav, adres);
+    char *request = new char[grequest.length()+1];
+	strcpy(request,grequest.c_str());
     
 	// Zaslání GET requestu
     BIO_write(bio, request, strlen(request));
@@ -656,7 +644,7 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
     string stranka = "";
     int p;
     char r[1024];
-    for(;;)
+    while(1)
     {
         p = BIO_read(bio, r, 1023);
         if(p <= 0) break;
@@ -679,28 +667,13 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 		return -7; 
 	}
 
-	// Nalezení začátku xml z GET požadavku
-	unsigned int delkaHlavicky = 0;
-	for(unsigned int i = 0; i < stranka.length(); i++)
+	// Připravení získané odpovědi pro zpracování
+	int k = zpracujStranku(stranka, parametr);
+	if (k != 0)
 	{
-		if ((stranka[i] == '<') && (stranka[i+1] == 'f') && (stranka[i+2] == 'e') && 
-        (stranka[i+3] == 'e') && (stranka[i+4] == 'd') && (stranka[i+5] == ' ') && 
-        (stranka[i+6] == 'x') && (stranka[i+7] == 'm') && (stranka[i+8] == 'l') && 
-        (stranka[i+9] == 'n') && (stranka[i+10] == 's') && (stranka[i+11] == '='))
-		{
-			delkaHlavicky = i;
-			break;
-		}
+		cerr << "Stránka neobsahuje ATOM formát." << endl;
+		return -8;
 	}
-
-	stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
-	int xmlVelikost = stranka.length() + 1;
-	char *xmldoc = new char[xmlVelikost];
-	strcpy(xmldoc,stranka.c_str());
-
-	// Zpracování xml
-	zpracujXML(xmldoc, xmlVelikost, parametr);
-	delete[] xmldoc;
 	return 0;
 }
 
@@ -781,20 +754,10 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
         return -6;
     }
 
-    // Skládání GET requestu
-    string s1, s2, s3, s4, s5, s6;
-    s1 = "GET ";
-    s2 = pozadav;
-    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
-    s4 = adres;
-    s5 = "\r\nConnection: close\r\n\r\n";
-    s6 = s1;
-    s6.append(s2);
-    s6.append(s3);
-    s6.append(s4);
-    s6.append(s5);
-    char *request = new char[s6.length()+1];
-    strcpy(request,s6.c_str());
+	// Složení GET requestu
+    string grequest = pozadavek(pozadav, adres);
+    char *request = new char[grequest.length()+1];
+	strcpy(request,grequest.c_str());
 
     // Zaslání GET requestu 
     BIO_write(bio, request, strlen(request));
@@ -803,12 +766,11 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
     string stranka = "";
     int p;
 	char r[1024];
-    for(;;)
+    while(1)
     {
         p = BIO_read(bio, r, 1023);
         if(p <= 0) break;
         r[p] = 0;
-        //printf("%s", r);
         stranka.append(r);
     }
 
@@ -828,28 +790,13 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
 		return -7; 
 	}
 
-    // Nalezení začátku xml z GET požadavku
-    unsigned int delkaHlavicky = 0;
-    for(unsigned int i = 0; i < stranka.length(); i++)
-    {
-        if ((stranka[i] == '<') && (stranka[i+1] == 'f') && (stranka[i+2] == 'e') && 
-        (stranka[i+3] == 'e') && (stranka[i+4] == 'd') && (stranka[i+5] == ' ') && 
-        (stranka[i+6] == 'x') && (stranka[i+7] == 'm') && (stranka[i+8] == 'l') && 
-        (stranka[i+9] == 'n') && (stranka[i+10] == 's') && (stranka[i+11] == '='))
-        {
-            delkaHlavicky = i;
-            break;
-        }
-    }
-
-    stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
-    int xmlVelikost = stranka.length() + 1;
-    char *xmldoc = new char[xmlVelikost];
-    strcpy(xmldoc,stranka.c_str());
-
-    // Zpracování xml
-    zpracujXML(xmldoc, xmlVelikost, parametr);
-    delete[] xmldoc;
+	// Připravení získané odpovědi pro zpracování
+	int k = zpracujStranku(stranka, parametr);
+	if (k != 0)
+	{
+		cerr << "Stránka neobsahuje ATOM formát." << endl;
+		return -8;
+	}
     return 0;
 }
 //******************************************************************************
@@ -923,4 +870,67 @@ int navratovyKod(string stranka, Param* parametr)
 		return -7;
 	}
 	return -7;
+}
+
+/**
+ * Funkce, která složí GET request
+ * @param	string 	požadavek pro GET request
+ * @param 	string 	adresa pro GET request
+ * @return 	string 	GET request
+*/
+string pozadavek(string pozadav, string adres)
+{
+	string s1, s2, s3, s4, s5, s6;
+    s1 = "GET ";
+    s2 = pozadav;
+    s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
+    s4 = adres;
+    s5 = "\r\nConnection: close\r\n\r\n";
+    s6 = s1;
+    s6.append(s2);
+    s6.append(s3);
+    s6.append(s4);
+    s6.append(s5);
+	return s6;
+}
+
+
+/**
+ * Funkce, která připravý staženou stránku pro zpracování pomocí libxml2
+ * @param	string 	obsah stránky získaný pomocí GET request
+ * @param 	Param*	struktura se zadanými parametry
+ * @return 	int 	0 při OK
+ 					-8 při stránce, která neobsahuje obsah ve formátu ATOM
+*/
+int zpracujStranku(string stranka, Param* parametr)
+{
+	unsigned int delkaHlavicky = 0;
+	bool nalezl = false;
+    for(unsigned int i = 0; i < stranka.length(); i++)
+    {
+        if ((stranka[i] == '<') && (stranka[i+1] == 'f') && (stranka[i+2] == 'e') && 
+        (stranka[i+3] == 'e') && (stranka[i+4] == 'd') && (stranka[i+5] == ' ') && 
+        (stranka[i+6] == 'x') && (stranka[i+7] == 'm') && (stranka[i+8] == 'l') && 
+        (stranka[i+9] == 'n') && (stranka[i+10] == 's') && (stranka[i+11] == '='))
+        {
+            delkaHlavicky = i;
+            nalezl = true;
+            break;
+        }
+    }
+
+    if (nalezl == false) // Stránka nevrátila XML ve formátu ATOM
+    {
+    	return -8;
+    }
+
+    stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
+    int xmlVelikost = stranka.length() + 1;
+    char *xmldoc = new char[xmlVelikost];
+    strcpy(xmldoc,stranka.c_str());
+
+    // Zpracování xml
+    zpracujXML(xmldoc, xmlVelikost, parametr);
+    delete[] xmldoc;
+    return 0;
 }
