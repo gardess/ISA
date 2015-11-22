@@ -9,17 +9,16 @@
 #include <libxml/xmlmemory.h>
 #include <libxml/parser.h>
 
-#define HTTP 80
-#define HTTPS 443
 #define NAZEV 1
 #define AUTOR 2
 #define AKTUALIZACE 3
 #define NAZEVNOVINKY 4
-#define ATOMAUTOR 5
+#define HTTP 80
+#define HTTPS 443
 
 using namespace std;
 
-// struktura pro uložení parametrů příkazové řádky
+// Struktura pro uložení parametrů příkazové řádky
 using Param = struct parametry {
 	string adresaParamStr;
 	string fParamStr;
@@ -35,17 +34,17 @@ using Param = struct parametry {
 	int uParam = 0;
 };
 
-// deklarace funkčních prototypů
+// Deklarace funkčních prototypů
 void printHelp();
-int parseParameters(int argc, char* argv[], Param* parametr);
-int pocetRadku (string cesta);
+int zpracujParametry(int argc, char* argv[], Param* parametr);
+int pocetRadku(string cesta);
 int zpracovaniSouboru(string cesta, string * radky);
 string adresa(string* zdroj, string* pozadav, string* adre, int* portC);
 int port(string* zdroj, int* posun);
 string portS(int index, string str, int portI, string* adre, int* portC);
-void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
-void getReference (xmlNodePtr cur);
-static void parseDoc(char *docname, int xmlVelikost, Param* parametr);
+void obsahElementu(xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
+void odkaz(xmlNodePtr cur);
+static void zpracujXML(char *docname, int xmlVelikost, Param* parametr);
 int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
 int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
 int navratovyKod(string stranka, Param* parametr);
@@ -53,18 +52,18 @@ int navratovyKod(string stranka, Param* parametr);
 
 int main(int argc, char* argv[])
 {
-	// Zpracovani vstupnich parametru
+	// Zpracování vstupních parametrů
 	Param* parametr = new Param;
-	int par = parseParameters(argc, argv, parametr);
+	int par = zpracujParametry(argc, argv, parametr);
 	if (par == -1)
 	{
 		return -1;
 	}
 
-	// Zpracovani zdroju
+	// Zpracování zdrojů
 	int ret = 0;
 	string *novy;
-	if (parametr->fParam == 1) // je zadan soubor se zdroji
+	if (parametr->fParam == 1) // Je zadán soubor se zdroji
 	{
 		int rad = pocetRadku(parametr->fParamStr);
 		if (rad == -3)
@@ -74,7 +73,7 @@ int main(int argc, char* argv[])
 		}
 		else if (rad == 0)
 		{
-			cerr << "Zadaný soubor neobsahuje zadny validni radek nebo je prazdny." << endl;
+			cerr << "Zadany soubor neobsahuje zadny validni radek nebo je prazdny." << endl;
 			delete parametr;
 			return -4;
 		}
@@ -86,29 +85,30 @@ int main(int argc, char* argv[])
 			return -3;
 		}
 	}
-	else // Je zadan pouze jeden zdroj
+	else // Je zadán pouze jeden zdroj tj. URL
 	{
 		novy = new string[1];
 		ret = 1;
 		novy[0].append(parametr->adresaParamStr);
 	}
 
-	// inicializace openSSL
+	// Inicializace openSSL
 	SSL_load_error_strings();
 	ERR_load_BIO_strings();
 	SSL_library_init();
 
-    // Cyklus, ktery ridi cely program
+    // Cyklus, který řídí celý program
 	for (int a = 0; a < ret; a++)
 	{
+		// Příprava adresy pro připojení
 		string pozadav;
 		string adres;
 		int portC;
 		string adr = adresa(&novy[a], &pozadav, &adres, &portC);
 		char *prip = new char[adr.length()+1];
 		strcpy(prip,adr.c_str());
-		//cout<< "PortC: " << portC << endl;
-		// Pripojeni
+
+		// Připojení
 		if (portC == HTTP)
 		{
 			connectHTTP(prip, pozadav, adres, parametr);
@@ -117,9 +117,13 @@ int main(int argc, char* argv[])
 		{
 			connectHTTPS(prip, pozadav, adres, parametr);
 		}
+		else // Nebyl zadán port 80 nebo 443
+		{
+			cerr << "Byl zadan spatny port." << endl;
+		}
 		delete[] prip;
 
-		// reseni mezery mezi jednotlivymi zdroji
+		// Řešení mezery mezi zdroji
 		if (a+1 == ret)
 		{
 			
@@ -143,7 +147,7 @@ void printHelp()
 	const char *HELPMSG =
 	  "Ctecka novinek ve formatu Atom s podporou SSL/TLS\n"
 	  "Autor: Milan Gardas (xgarda04@stud.fit.vutbr.cz)\n"
-	  "Program provádí výpis novinek ze stranek dle zadaných parametru.\n"
+	  "Program provadi vypis novinek ze stranek dle zadanych parametru.\n"
 	  "Použití: arfeed --help\t\tVypise napovedu\n"
 	  "         arfeed URL -a -T -u\tVypise vsechny prispevky spolecne s autory, aktualizaci a odkazem ze zadane stranky\n"
 	  "         arfeed -f example -l\tVypise nazev nejnovejsiho prispevku na vsech strankach ktere jsou v example\n"
@@ -151,7 +155,7 @@ void printHelp()
 	  "Popis parametrů:\n"
 	  "URL\t\turl se zdrojem\n"
 	  "-f example\tsoubor obsahujici adresy se zdroji\n"
-	  "-c example\tsoubor s certifikáty\n"
+	  "-c example\tsoubor s certifikaty\n"
 	  "-C example\tsložka obsahující soubory s certifikáty\n"
 	  "-a\t\tzajisti ze u kazde novinky bude vypsan i jeji autor\n"
 	  "-T\t\tzajisti ze u kazde novinky bude vypsan i cas zmeny\n"
@@ -165,10 +169,11 @@ void printHelp()
  * Funkce pro kontrolu zadaných parametrů
  * @param   int		počet parametrů
  * @param   char	pole zadaných argumentů
- * @param	Param	struktura pro uložený zadaných argumentů
- * @return  int
+ * @param	Param	struktura pro uložení zadaných argumentů
+ * @return  int 	0 při OK
+ 					-1 při chybě
  */
-int parseParameters(int argc, char* argv[], Param* parametr)
+int zpracujParametry(int argc, char* argv[], Param* parametr)
 {
 	for(int i = 1; i < argc; i++)
 	{
@@ -250,7 +255,8 @@ int parseParameters(int argc, char* argv[], Param* parametr)
 /**
  * Funkce pro zjištění počtu korektních řádků
  * @param   string	cesta k souboru
- * @return  int
+ * @return  int 	počet řádků při OK
+ 					-3 při chybě
  */
 int pocetRadku (string cesta)
 {
@@ -261,7 +267,6 @@ int pocetRadku (string cesta)
 	{
 		while (getline (myfile,line))
     	{
-     	// cout << line << '\n';
 			for(unsigned int i = 0; i < line.length(); i++)
 			{
 				if(line[i] == '#')
@@ -273,15 +278,13 @@ int pocetRadku (string cesta)
 			{
 				radek++;
 			}
-		//cout << line << endl;
     	}
-    	//cout << "Pocet neprazdnych radku: " << radek << endl;
 		myfile.close();
 		return radek;
 	} 
 	else
 	{
-		cout << "Unable to open file" << endl;
+		cerr << "Nepodarilo se otevrit soubor" << endl;
 		return -3;
 	}
 }
@@ -291,7 +294,8 @@ int pocetRadku (string cesta)
  * Funkce pro získání korektních řádků ze souboru
  * @param   string	cesta k souboru
  * @param   string*	pole řetězců pro uložení obsahu souboru
- * @return  int
+ * @return  int 	počet řádků při OK
+ 					-3 při chybě
  */
 int zpracovaniSouboru(string cesta, string * radky)
 {
@@ -302,7 +306,6 @@ int zpracovaniSouboru(string cesta, string * radky)
     	int pocet = 0;
     	while ( getline (soubor,line) )
     	{
-			//cout << "TEST" << endl;
 			for(unsigned int i = 0; i < line.length(); i++)
 			{
 				if(line[i] == '#')
@@ -314,24 +317,26 @@ int zpracovaniSouboru(string cesta, string * radky)
 				{
 					radky[pocet] = line;
 					pocet++;
-				}
-    		
+				}	
 		}
     	soubor.close();
     	return pocet;
  	}
 	else
 	{
-		cout << "Unable to open file" << endl;
+		cerr << "Nepodařilo se otevřít soubor" << endl;
 		return -3; 
 	}
 }
 
 
 /**
- * Funkce, která spojí adresu s portem
- * @param	Param	struktura pro uložený zadaných argumentů
- * @return  string
+ * Funkce, která rozdělí adresu zdroje na adresa:port/pozadavek
+ * @param	string*	adresa zdroje
+ * @param 	string* ukazatel pro uložení požadavku
+ * @param 	string* ukazatel pro uložení adresy
+ * @param 	int* 	ukazatel pro uložení čísla portu 
+ * @return  string 	adresa ve tvaru adresa:port
  */
 string adresa(string* zdroj, string* pozadav, string* adre, int* portC)
 {
@@ -351,28 +356,22 @@ string adresa(string* zdroj, string* pozadav, string* adre, int* portC)
 			break;
 		}
 	}
-
 	string pozadavek;
 	str2.assign(str,0,index); // <host>:<port>
 	pozadavek.assign(str,index,str.length()); // <path>?<searchpart>
 	pozadavek.pop_back(); // odebrani lomitka na konci adresy
-	//pozadav = new string[pozadavek.length()];
 	pozadav->append(pozadavek);
 	string adresaStr;
 	adresaStr = portS(index, str2, portI, adre, portC);
-	/*cout << "-------------------------------------------------------------------" << endl;
-	cout << "AdresaStr: " << adresaStr << endl;
-	cout << "Pozadavek: " << pozadavek << endl;
-	cout << "-------------------------------------------------------------------" << endl;*/
 	return adresaStr;
 }
 
 
 /**
  * Funkce, která zjistí číslo portu z prefixu
- * @param	Param*	ukazatel na strukturu uložených argumentů
- * @param	int*	ukazatel na int pro uložení velikosti prefixu
- * @return  int 	cislo portu
+ * @param	string*	adresa zdroje
+ * @param	int*	ukazatel pro uložení velikosti prefixu
+ * @return  int 	číslo portu
  */
 int port(string* zdroj, int* posun)
 {
@@ -383,14 +382,12 @@ int port(string* zdroj, int* posun)
 	if (found!=string::npos)
 	{
 		portI = HTTP;
-		//cout << "http nalezeno na " << found << " port: " << portI << endl;
 		*posun = 7;
 	}
 	found = zdroj->find(prefix2);
 	if (found!=string::npos)
 	{
 		portI = HTTPS;
-		//cout << "https nalezeno na " << found << " port: " << portI << endl;
 		*posun = 8;
 	}
 	return portI;
@@ -398,11 +395,13 @@ int port(string* zdroj, int* posun)
 
 
 /**
- * Funkce, která zjistí číslo portu z adresy a spoji adresu s cislem portem
+ * Funkce, která zjistí číslo portu z adresy a spojí adresu s číslem portu
  * @param	int		hodnota obsahující index lomítka v adrese
  * @param 	string 	zadaná adresa
  * @param	int		port zjistěný z prefixu
- * @return  string 	
+ * @param 	string* ukazatel pro uložení adresy
+ * @param 	int* 	ukazatel pro uložení čísla portu
+ * @return  string 	adresa ve tvaru adresa:port
  */
 string portS(int index, string str, int portI, string* adre, int* portC)
 {
@@ -426,7 +425,6 @@ string portS(int index, string str, int portI, string* adre, int* portC)
 			break;
 		}
 	}
-
 	string portStr;
 	// priprava portu pro pridani do adresy
 	if (dvojtecka == true)
@@ -440,10 +438,7 @@ string portS(int index, string str, int portI, string* adre, int* portC)
 	}
 	string::size_type vel;
 	*portC = stoi(portStr, &vel);
-	/*cout << "portStr: " << portStr << endl;
-	cout<< "portI: "<<portI <<endl;*/
 	string dvojteckaStr = ":";
-	//cout << "Str: " << str << endl;
 	adre->append(str);
 	// spojeni adresy s cislem portu
 	str.append(dvojteckaStr);
@@ -452,6 +447,11 @@ string portS(int index, string str, int portI, string* adre, int* portC)
 }
 
 
+//******************************************************************************
+/*
+	Funkce pro zpracování XML byly vytvořeny za pomoci Libxml Tutorial dostupného z adresy: http://xmlsoft.org/tutorial/
+	Autor: John Fleck
+*/
 /**
  * Funkce, která vypíše hodnotu xml elementu
  * @param	xmlDocPtr	xml strom
@@ -459,7 +459,7 @@ string portS(int index, string str, int portI, string* adre, int* portC)
  * @param	xmlChar*	element který vyhledáváme
  * @param	int			hodnota sloužící k vypsání hodnoty elementu se správným řetězcem
  */
-void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
+void obsahElementu(xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 {
 	xmlChar *key;
 	cur = cur->xmlChildrenNode;
@@ -482,12 +482,9 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
 			   	case NAZEVNOVINKY :
 			    	cout << key << endl;
 			    	break;
-			    case ATOMAUTOR :
-			    	break;
 			   	default :
 			    	cerr << "Spatny parametr funkce pro parsovani XML." << endl;
 		   	}
-		    //printf("%s: %s\n",text, key);
 		    xmlFree(key);
  	    }  
 		cur = cur->next;
@@ -500,7 +497,7 @@ void parseStoryMy (xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param)
  * Funkce, která vypíše hodnotu parametru xml elementu
  * @param	xmlNodePtr	aktuální uzel xml stromu
  */
-void getReference (xmlNodePtr cur)
+void odkaz(xmlNodePtr cur)
 {
 	xmlChar *uri;
 	cur = cur->xmlChildrenNode;
@@ -524,19 +521,17 @@ void getReference (xmlNodePtr cur)
  * @param	int		velikost obsahu stránky
  * @param	Param*	struktura se zadanými parametry
  */
-static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
+static void zpracujXML(char *docname, int xmlVelikost, Param* parametr)
 {
 	xmlDocPtr doc;
 	xmlNodePtr cur;
 	xmlNodePtr temp;
 	xmlNodePtr pocitadlo;
 
-	//doc = xmlParseFile(docname); // pravděpodobně bude změna na xmlParseMemory
 	doc = xmlParseMemory(docname, xmlVelikost);
 	if (doc == NULL )
 	{
-		//fprintf(stderr,"Document not parsed successfully. \n");
-		cerr << "Document not parsed successfully." << endl;
+		cerr << "Chyba, nepodarilo se zpracovat xml" << endl;
 		return;
 	}
 	
@@ -544,70 +539,54 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 	
 	if (cur == NULL)
 	{
-		//fprintf(stderr,"empty document\n");
-		cerr << "empty document" << endl;
+		cerr << "Chyba, prazdne xml" << endl;
 		xmlFreeDoc(doc);
 		return;
 	}
 	
 	if (xmlStrcmp(cur->name, (const xmlChar *) "feed"))
 	{
-		//fprintf(stderr,"document of the wrong type, root node != feed");
-		cerr << "document of the wrong type, root node != feed" << endl;
+		cerr << "Chyba, korenovy element xml se nejmenuje feed" << endl;
 		xmlFreeDoc(doc);
 		return;
 	}
-	////////////////////////
-	// uroven zanoreni 1
+
 	if ((!xmlStrcmp(cur->name, (const xmlChar *)"feed")))
 	{
-		parseStoryMy (doc, cur, (xmlChar *)"title", NAZEV);
+		obsahElementu(doc, cur, (xmlChar *)"title", NAZEV);
 	}
-	//vyhledavani elementu "author" v rodicovskem uzlu
-	//temp = cur;
 	cur = cur->xmlChildrenNode;
 	pocitadlo = cur;
 	int s = 0;
-	//cout << "----------------------------------------------------------------" << endl;
-	//cout << "cur: " << cur << endl;
-	//cout << "poc: " << pocitadlo << endl;
+	// Zjištění počtu feedů v xml pro pozdější výpis mezer
 	while(pocitadlo != NULL)
 	{
 		if ((!xmlStrcmp(pocitadlo->name, (const xmlChar *)"entry")))
 		{
 			s++;
 		}
-		//cout << "hodnota s: " << s << endl;
 		pocitadlo = pocitadlo->next;
 	}
-	//cout << "----------------------------------------------------------------" << endl;
-	//printf("jmeno cur elementu: %s\n", cur->name);
+
 	int iterace = 0;
 	int nalezl = 0;
 	while(cur != NULL)
 	{
-		//iterace++;
-		// vyhledavani elementu "author v kořenovém elementu"
-		if (((!xmlStrcmp(cur->name, (const xmlChar *)"author"))) && (parametr->aParam == 1))
-		{
-			// volani funkce pro ulozeni jmeno autor celeho atom dokumentu
-			parseStoryMy (doc, cur, (xmlChar *)"name", ATOMAUTOR);
-		}
 		// vyhledani elementu "entry" v kořenovém elementu
-		else if ((!xmlStrcmp(cur->name, (const xmlChar *)"entry")))
+		if ((!xmlStrcmp(cur->name, (const xmlChar *)"entry")))
 		{
 			iterace++;
 			// volani funkce pro vypis nazvu clanku
-			parseStoryMy (doc, cur, (xmlChar *)"title", NAZEVNOVINKY);
+			obsahElementu(doc, cur, (xmlChar *)"title", NAZEVNOVINKY);
 			// volani funkce pro vypis datumu aktualizace, pouze pokud je zadan parametr -T
 			if (parametr->TParam == 1)
 			{
-				parseStoryMy (doc, cur, (xmlChar *)"updated", AKTUALIZACE); // Parametr -T
+				obsahElementu(doc, cur, (xmlChar *)"updated", AKTUALIZACE); // Parametr -T
 			}
 			if (parametr->uParam == 1)
 			{
 			// volani funkce pro ziskani parametru z xml tagu a jeho nasledne vypsani
-				getReference (cur);
+				odkaz(cur);
 			}
 			if (parametr->aParam == 1)
 			{
@@ -618,7 +597,7 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 					if ((!xmlStrcmp(temp->name, (const xmlChar *)"author")))
 					{
 						// volani funkce pro vypis autora, pouze pokud je zadan parametr -a
-						parseStoryMy(doc, temp, (xmlChar *)"name", AUTOR); // Parametr -a
+						obsahElementu(doc, temp, (xmlChar *)"name", AUTOR); // Parametr -a
 						nalezl = 1;
 					}
 					temp = temp->next; 
@@ -633,62 +612,45 @@ static void parseDoc(char *docname, int xmlVelikost, Param* parametr)
 			{
 				;
 			}
-			else if (iterace == s)
+			else if (iterace == s) // posledni zaznam nevypisovat mezeru
 			{
-				; // posledni zaznam nevypisovat mezeru
+				; 
 			}
 			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
 			{
 				cout << "" << endl;
 			}
-			/*{
-				if (cur->next == NULL)
-				{
-					cout << "NULL" << endl;
-				}
-				else 
-				{
-					cout << "" << endl;
-				}
-			}*/
-			// je vice zaznamu je potreba vypsat mezeru - kontrola posledniho
-			/*else if ((cur->next != NULL) && ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1)))
-			{
-				cout << "" << endl;
-			}
-			// je vice zaznamu a neni posledni
-			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
-			{
-				//cout << "" << endl;
-			}*/
-			/*if (cur->next == NULL) // 
-			{
-
-			}
-			else if (parametr->lParam == 1)
-			{
-
-			}
-			else if ((parametr->aParam == 1) || (parametr->uParam == 1) || (parametr->TParam == 1))
-			{
-				cout << "" << endl;
-			}*/
 		}
 		// pro zobrazeni pouze prvni novinky ("feedu")
 		if ((parametr->lParam == 1) && (iterace == 1))
 		{
 			break;
 		}
-	nalezl = 0;	 
-	cur = cur->next;
+		nalezl = 0;	 
+		cur = cur->next;
 	}
-	/*cout << "hodnota i: " << iterace << endl;
-	cout << "hodnota s: " << s << endl;*/
 	xmlFreeDoc(doc);
 	return;
 }
+//******************************************************************************
 
 
+//******************************************************************************
+/*
+	Funkce pro připojení k HTTP/HTTPS serveru byly vytvořene za pomoci návodu a souborů na www stránce: Secure programming with the OpenSSL API, Part 1: Overview of the API, dostupné z adresy: http://www.ibm.com/developerworks/library/l-openssl/
+	Autor: Kenneth Ballard
+*/
+/**
+ * Funkce, která se připojí k HTTP serveru a získá z něj data
+ * @param	char*	adresa ve tvaru adresa:port
+ * @param	string 	požadavek pro GET request
+ * @param 	string 	adresa pro GET request
+ * @param	Param*	struktura se zadanými parametry
+ * @return 	int 	0 při OK
+ 					-1 při chybě vytvoření BIO socketu
+ 					-2 při chybě připojení
+ 					-7 pokud navratovy kod GET request není 200 nebo 301
+ */
 int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 {
 	BIO * bio;
@@ -704,12 +666,12 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 		return -2;
 	}
 
-	// skladani GET requestu 
+	// Skládání GET requestu 
 	string s1, s2, s3, s4, s5, s6;
-	s1 = "GET ";//User-Agent: Mozilla/4.0 (compatible; MSIE5.01; Windows NT)
-	s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";//
+	s1 = "GET ";
+	s2 = pozadav;
 	s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
-	s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
+	s4 = adres;
 	s5 = "\r\nConnection: close\r\n\r\n";
 	s6.clear();
 	s6.append(s1);
@@ -719,12 +681,14 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	s6.append(s5); 
 	char *request = new char[s6.length()+1];
 	strcpy(request,s6.c_str());
-    char r[1024];
-	/* Send the request */
+    
+	// Zaslání GET requestu
     BIO_write(bio, request, strlen(request));
-    /* Read in the response */
-    int p;
+
+    // Čtení odpovědi serveru na GET request 
     string stranka = "";
+    int p;
+    char r[1024];
     for(;;)
     {
         p = BIO_read(bio, r, 1023);
@@ -732,23 +696,23 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
         r[p] = 0;
        	stranka.append(r);
 	}
+
+	// Uzavření spojení
 	BIO_free_all(bio);
 	delete[] request;
-	//cout << stranka << endl;
-	// slouzi ke zjisteni zda byl navratovy kod 200 OK nebo 301 Moved Permanently nebo jiný
+
+    // Zjištění návratového kódu odpovědi na GET request
     int kod = navratovyKod(stranka, parametr);
-	if (kod == 1) // presmerovani
+	if (kod == 1) // přesměrování
 	{
-		// dealokace
 		return 0;
 	}
 	else if (kod == -7) // chyba
 	{
-		// dealokace
 		return -7; 
 	}
 
-	// Nalezení začátku xml z Get požadavku
+	// Nalezení začátku xml z GET požadavku
 	unsigned int delkaHlavicky = 0;
 	for(unsigned int i = 0; i < stranka.length(); i++)
 	{
@@ -762,47 +726,46 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 		}
 	}
 
-	//cout << stranka << endl;
-	// Zjistena zda je 200 nebo 301
-
-
 	stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
 	int xmlVelikost = stranka.length() + 1;
 	char *xmldoc = new char[xmlVelikost];
 	strcpy(xmldoc,stranka.c_str());
+
 	// Zpracování xml
-	parseDoc (xmldoc, xmlVelikost, parametr);
+	zpracujXML(xmldoc, xmlVelikost, parametr);
 	delete[] xmldoc;
 	return 0;
 }
 
 
+/**
+ * Funkce, která se připojí k HTTPS serveru a získá z něj data
+ * @param	char*	adresa ve tvaru adresa:port
+ * @param	string 	požadavek pro GET request
+ * @param 	string 	adresa pro GET request
+ * @param	Param*	struktura se zadanými parametry
+ * @return 	int 	0 při OK
+ 					-1 při chybě vytvoření BIO socketu
+ 					-2 při chybě připojení
+ 					-5 při otevírání certifikátu
+ 					-6 při chybě ověřování certifikátu
+ 					-7 pokud navratovy kod GET request není 200 nebo 301
+ */
 int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
 {
     BIO * bio;
     SSL * ssl;
     SSL_CTX * ctx;
-
-    int p;
-
-    
-    char r[1024];
-
-
-
-    // Set up the SSL context 
-
     ctx = SSL_CTX_new(SSLv23_client_method());
 
-    // Load the trust store 
+    // Načtení certifikátu z -c parametru 
     if (parametr->cParam == 1)
     {
     	char *cFile = new char[parametr->cParamStr.length()+1];
 		strcpy(cFile,parametr->cParamStr.c_str());
         if(! SSL_CTX_load_verify_locations(ctx, cFile, NULL))
         {
-            fprintf(stderr, "Error loading trust store\n");
-            ERR_print_errors_fp(stderr);
+        	cerr << "Chyba pri otevirani certifikatu." << endl;
             SSL_CTX_free(ctx);
             delete[] cFile;
             return -5;
@@ -810,58 +773,53 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
         delete[] cFile;
     }
 
+    // načtení certifikátů ze složky z -C parametru
     char *CDirectory = new char[parametr->CParamStr.length()+1];
 	strcpy(CDirectory,parametr->CParamStr.c_str());
     if(! SSL_CTX_load_verify_locations(ctx, NULL, CDirectory))
     {
-        fprintf(stderr, "Error loading trust store\n");
-        ERR_print_errors_fp(stderr);
+    	cerr << "Chyba pri otevirani certifikatu ze zadane slozky." << endl;
         SSL_CTX_free(ctx);
         delete[] CDirectory;
         return -5;
     }
     delete[] CDirectory;
 
-    // Setup the connection 
-
+    // Nastavení spojení 
     bio = BIO_new_ssl_connect(ctx);
 
-    // Set the SSL_MODE_AUTO_RETRY flag 
-
+    // Nastavení SSL
     BIO_get_ssl(bio, & ssl);
     SSL_set_mode(ssl, SSL_MODE_AUTO_RETRY);
 
-    // Create and setup the connection 
-
+    // Vytvoření spojení 
     BIO_set_conn_hostname(bio, prip);
 
     if(BIO_do_connect(bio) <= 0)
     {
-        fprintf(stderr, "Error attempting to connect\n");
-        ERR_print_errors_fp(stderr);
+    	cerr << "Nepodařilo se připojit k serveru: " << adres << endl;
         BIO_free_all(bio);
         SSL_CTX_free(ctx);
-        return -6;
+        return -2;
     }
 
-    //Check the certificate 
-
+    // Kontrola certifikátu 
     if(SSL_get_verify_result(ssl) != X509_V_OK)
     {
     	string zdroj(prip); 
     	zdroj.erase(zdroj.end()-4, zdroj.end());
     	cerr << "Chyba: nepodarilo se overit platnost certifikatu serveru " << zdroj << endl;
-        //fprintf(stderr, "Certificate verification error: %ld\n", SSL_get_verify_result(ssl));
         BIO_free_all(bio);
         SSL_CTX_free(ctx);
         return -6;
     }
 
+    // Skládání GET requestu
     string s1, s2, s3, s4, s5, s6;
     s1 = "GET ";
-    s2 = pozadav;//"/hardware/headlines.atom";//"/headlines.atom";
+    s2 = pozadav;
     s3 = " HTTP/1.0\r\nUser-Agent: Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1\r\nHost: ";
-    s4 = adres;//"www.theregister.co.uk";//"www.theregister.co.uk";
+    s4 = adres;
     s5 = "\r\nConnection: close\r\n\r\n";
     s6 = s1;
     s6.append(s2);
@@ -871,12 +829,13 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
     char *request = new char[s6.length()+1];
     strcpy(request,s6.c_str());
 
-    // Send the request 
-
+    // Zaslání GET requestu 
     BIO_write(bio, request, strlen(request));
 
-    //Read in the response 
+    // Čtení odpovědi serveru na GET request 
     string stranka = "";
+    int p;
+	char r[1024];
     for(;;)
     {
         p = BIO_read(bio, r, 1023);
@@ -885,31 +844,24 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
         //printf("%s", r);
         stranka.append(r);
     }
-    /*cout << "---------------------------------------------------" << endl;
-    cout << stranka << endl;
-    cout << "---------------------------------------------------" << endl;*/
-    // Close the connection and free the context 
 
+    // Uzavření spojení 
     BIO_free_all(bio);
     SSL_CTX_free(ctx);
     delete[] request;
 
-    //cout << stranka << endl;
-
-    /////////////////////////////////////////////
+    // Zjištění návratového kódu odpovědi na GET request
     int kod = navratovyKod(stranka, parametr);
-	if (kod == 1) // presmerovani
+	if (kod == 1) // přesměrování
 	{
-		// dealokace
 		return 0;
 	}
 	else if (kod == -7) // chyba
 	{
-		// dealokace
 		return -7; 
 	}
-	/////////////////////////////////////////////
-    // Nalezení začátku xml z Get požadavku
+
+    // Nalezení začátku xml z GET požadavku
     unsigned int delkaHlavicky = 0;
     for(unsigned int i = 0; i < stranka.length(); i++)
     {
@@ -922,18 +874,28 @@ int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr)
             break;
         }
     }
-    //cout << stranka << endl;
+
     stranka.erase(stranka.begin(), stranka.begin()+delkaHlavicky);
     int xmlVelikost = stranka.length() + 1;
     char *xmldoc = new char[xmlVelikost];
     strcpy(xmldoc,stranka.c_str());
+
     // Zpracování xml
-    parseDoc (xmldoc, xmlVelikost, parametr);
+    zpracujXML(xmldoc, xmlVelikost, parametr);
     delete[] xmldoc;
     return 0;
 }
+//******************************************************************************
 
 
+/**
+ * Funkce, zjistí kód odpovědi serveru
+ * @param	string 	odpověď na GET request
+ * @param	Param*	struktura se zadanými parametry
+ * @return 	int 	0 při 200 OK
+ 					1 při 301 Moved Permanently
+ 					-7 pokud odpověď není 200 nebo 301
+ */
 int navratovyKod(string stranka, Param* parametr)
 {
 	string ok = "200 OK";
@@ -941,23 +903,32 @@ int navratovyKod(string stranka, Param* parametr)
 	string location = "Location: ";
 	string radek = "\n";
 	size_t found;
+
+	// Vyhledání řetězce 200 OK
 	found = stranka.find(ok);
 	if (found != string::npos)
 	{
 		return 0;
 	}
+
+	// Vyhledání řetězce 301 Moved Pernamently
 	found = stranka.find(moved);
 	if (found != string::npos)
 	{
+		// Vyhledání řetězce Location: 
 		found = stranka.find(location);
 		if (found != string::npos)
 		{
+			// Mazání obsahu odpovědi do konce řetezce Location: 
 			stranka.erase(stranka.begin(), stranka.begin()+found+location.length());
+			// Hledání adresy na ktrou byla stránka přesunuta
 			found = stranka.find(radek);
 			if (found != string::npos)
 			{
-				stranka.erase(stranka.begin()+found-1, stranka.end()); // adresa kam se presunujeme
-				// zavolat connect funkci
+				// smazání obsahu odpovědi tak, aby zbyla pouze adresa kam se přesuneme
+				stranka.erase(stranka.begin()+found-1, stranka.end());
+
+				// Příprava adresy pro připojení
 				string* novy = new string[1]; 
 				novy->append(stranka);
 				string pozadav;
@@ -966,14 +937,8 @@ int navratovyKod(string stranka, Param* parametr)
 				string adr = adresa(&novy[0], &pozadav, &adres, &portC);
 				char *prip = new char[adr.length()+1];
 				strcpy(prip,adr.c_str());
-				/*cout<< "PortC: " << portC << endl;
-				cout << "TEST" << endl;
-				cout << "novy: " << novy[0]<< endl;
-				cout << "pozadav:" << pozadav << endl;
-				cout << "adres: " << adres << endl;
-				cout << "portC: " << portC << endl;
-				cout << "prip: " << prip << endl;*/
-				// Pripojeni
+
+				// Připojení
 				if (portC == HTTP)
 				{
 					connectHTTP(prip, pozadav, adres, parametr);
@@ -990,6 +955,5 @@ int navratovyKod(string stranka, Param* parametr)
 		}
 		return -7;
 	}
-	//cout << stranka << endl;
 	return -7;
 }
