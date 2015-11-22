@@ -1,7 +1,5 @@
 #include <iostream>
-#include <string.h>
 #include <cstring>
-#include <cctype>
 #include <fstream>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
@@ -637,7 +635,7 @@ static void zpracujXML(char *docname, int xmlVelikost, Param* parametr)
 
 //******************************************************************************
 /*
-	Funkce pro připojení k HTTP/HTTPS serveru byly vytvořene za pomoci návodu a souborů na www stránce: Secure programming with the OpenSSL API, Part 1: Overview of the API, dostupné z adresy: http://www.ibm.com/developerworks/library/l-openssl/
+	Funkce pro připojení k HTTP/HTTPS serveru byly vytvořeny za pomoci návodu a souborů na www stránce: Secure programming with the OpenSSL API, Part 1: Overview of the API, dostupné z adresy: http://www.ibm.com/developerworks/library/l-openssl/
 	Autor: Kenneth Ballard
 */
 /**
@@ -658,11 +656,13 @@ int connectHTTP(char* prip, string pozadav, string adres, Param* parametr)
 	if (bio == NULL)
 	{
 		cerr << "CHYBA" << endl;
+		BIO_free_all(bio);
 		return -1;
 	}
 	if (BIO_do_connect(bio) <= 0)
 	{
 		cerr << "Chyba spojeni" << endl;
+		BIO_free_all(bio);
 		return -2;
 	}
 
