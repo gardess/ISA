@@ -1,52 +1,14 @@
-#include <iostream>
-#include <cstring>
-#include <fstream>
-#include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <libxml/xmlmemory.h>
-#include <libxml/parser.h>
+/*
+ * @Projekt:    Ctecka novinek ve formatu Atom s podporou SSL/TLS 
+ * @Autor:      Milan Gardas <xgarda04@stud.fit.vutbr.cz>
+ * @file:       arfeed.cpp
+ * @date:       22.11.2014
+ */
 
-#define NAZEV 1
-#define AUTOR 2
-#define AKTUALIZACE 3
-#define NAZEVNOVINKY 4
-#define HTTP 80
-#define HTTPS 443
+
+#include "arfeed.h"
 
 using namespace std;
-
-// Struktura pro uložení parametrů příkazové řádky
-using Param = struct parametry {
-	string adresaParamStr;
-	string fParamStr;
-	string cParamStr;
-	string CParamStr;
-	int adresaParam = 0;
-	int fParam = 0;
-	int cParam = 0;
-	int CParam = 0;
-	int lParam = 0;
-	int TParam = 0;
-	int aParam = 0;
-	int uParam = 0;
-};
-
-// Deklarace funkčních prototypů
-void printHelp();
-int zpracujParametry(int argc, char* argv[], Param* parametr);
-int pocetRadku(string cesta);
-int zpracovaniSouboru(string cesta, string * radky);
-string adresa(string* zdroj, string* pozadav, string* adre, int* portC);
-int port(string* zdroj, int* posun);
-string portS(int index, string str, int portI, string* adre, int* portC);
-void obsahElementu(xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
-void odkaz(xmlNodePtr cur);
-static void zpracujXML(char *docname, int xmlVelikost, Param* parametr);
-int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
-int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
-int navratovyKod(string stranka, Param* parametr);
-
 
 int main(int argc, char* argv[])
 {
@@ -567,50 +529,53 @@ static void zpracujXML(char *docname, int xmlVelikost, Param* parametr)
 	}
 
 	int iterace = 0;
-	int nalezl = 0;
+	int nalezlA = 0;
+	//int nalezlU = 0, nalezlT = 0;
 	while(cur != NULL)
 	{
-		// vyhledani elementu "entry" v kořenovém elementu
+		// Vyhledani elementu "entry" v kořenovém elementu
 		if ((!xmlStrcmp(cur->name, (const xmlChar *)"entry")))
 		{
 			iterace++;
-			// volani funkce pro vypis nazvu clanku
+			// Volani funkce pro vypis nazvu clanku
 			obsahElementu(doc, cur, (xmlChar *)"title", NAZEVNOVINKY);
-			// volani funkce pro vypis datumu aktualizace, pouze pokud je zadan parametr -T
-			if (parametr->TParam == 1)
-			{
-				obsahElementu(doc, cur, (xmlChar *)"updated", AKTUALIZACE); // Parametr -T
-			}
-			if (parametr->uParam == 1)
-			{
-			// volani funkce pro ziskani parametru z xml tagu a jeho nasledne vypsani
-				odkaz(cur);
-			}
 			if (parametr->aParam == 1)
 			{
 				temp = cur->xmlChildrenNode;
 				while(temp != NULL)
 				{
-					// vyhledani elementu author v elementu entry
+					// Vyhledani elementu author v elementu entry
 					if ((!xmlStrcmp(temp->name, (const xmlChar *)"author")))
 					{
-						// volani funkce pro vypis autora, pouze pokud je zadan parametr -a
+						// Volani funkce pro vypis autora, pouze pokud je zadan parametr -a
 						obsahElementu(doc, temp, (xmlChar *)"name", AUTOR); // Parametr -a
-						nalezl = 1;
+						nalezlA = 1;
 					}
 					temp = temp->next; 
 				}
-				if (nalezl == 0)
+				if (nalezlA == 0)
 				{
 				cout << "Autor: " << "No author" << endl;
-				nalezl = 1;
+				nalezlA = 1;
 				}
 			}
-			if (parametr->lParam == 1) // nevypisuji mezeru protoze je pouze jeden zaznam
+			// Volani funkce pro vypis datumu aktualizace, pouze pokud je zadan parametr -T
+			if (parametr->TParam == 1)
+			{
+				obsahElementu(doc, cur, (xmlChar *)"updated", AKTUALIZACE); // Parametr -T
+				//nalezlT = 1;
+			}
+			// Volani funkce pro ziskani parametru z xml tagu a jeho nasledne vypsani, pouze pokud je zadan parametr -u
+			if (parametr->uParam == 1)
+			{
+				odkaz(cur); // Parametr -u
+				//nalezlU = 1;
+			}
+			if (parametr->lParam == 1) // Nevypisuji mezeru protoze je pouze jeden zaznam
 			{
 				;
 			}
-			else if (iterace == s) // posledni zaznam nevypisovat mezeru
+			else if (iterace == s) // Posledni zaznam nevypisovat mezeru
 			{
 				; 
 			}
@@ -619,12 +584,14 @@ static void zpracujXML(char *docname, int xmlVelikost, Param* parametr)
 				cout << "" << endl;
 			}
 		}
-		// pro zobrazeni pouze prvni novinky ("feedu")
+		// Pro zobrazeni pouze prvni novinky ("feedu")
 		if ((parametr->lParam == 1) && (iterace == 1))
 		{
 			break;
 		}
-		nalezl = 0;	 
+		nalezlA = 0;
+		//nalezlU = 0;
+		//nalezlT = 0;	 
 		cur = cur->next;
 	}
 	xmlFreeDoc(doc);

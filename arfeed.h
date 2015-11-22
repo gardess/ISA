@@ -1,15 +1,30 @@
+/*
+ * @Projekt:    Ctecka novinek ve formatu Atom s podporou SSL/TLS 
+ * @Autor:      Milan Gardas <xgarda04@stud.fit.vutbr.cz>
+ * @file:       arfeed.h
+ * @date:       22.11.2014
+ */
+
+
 #include <iostream>
-#include <string.h>
 #include <cstring>
-#include <cctype>
+#include <fstream>
 #include <openssl/bio.h>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include <libxml/xmlmemory.h>
+#include <libxml/parser.h>
 
+#define NAZEV 1
+#define AUTOR 2
+#define AKTUALIZACE 3
+#define NAZEVNOVINKY 4
 #define HTTP 80
 #define HTTPS 443
 
-// struktura pro uložení parametrů příkazové řádky
+using namespace std;
+
+// Struktura pro uložení parametrů příkazové řádky
 using Param = struct parametry {
 	string adresaParamStr;
 	string fParamStr;
@@ -25,9 +40,17 @@ using Param = struct parametry {
 	int uParam = 0;
 };
 
-// deklarace funkčních prototypů
+// Deklarace funkčních prototypů
 void printHelp();
-int parseParameters(int argc, char* argv[], Param* parametr);
-string adresa(Param* parametr);
-int port(Param* parametr, int* posun);
-string portS(int index, string str, int portI);
+int zpracujParametry(int argc, char* argv[], Param* parametr);
+int pocetRadku(string cesta);
+int zpracovaniSouboru(string cesta, string * radky);
+string adresa(string* zdroj, string* pozadav, string* adre, int* portC);
+int port(string* zdroj, int* posun);
+string portS(int index, string str, int portI, string* adre, int* portC);
+void obsahElementu(xmlDocPtr doc, xmlNodePtr cur, xmlChar* text, int param);
+void odkaz(xmlNodePtr cur);
+static void zpracujXML(char *docname, int xmlVelikost, Param* parametr);
+int connectHTTP(char* prip, string pozadav, string adres, Param* parametr);
+int connectHTTPS(char* prip, string pozadav, string adres, Param* parametr);
+int navratovyKod(string stranka, Param* parametr);
