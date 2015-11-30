@@ -1,3 +1,3 @@
 # ISA
-Project for ISA course<br>
-News reader in Atom format with SSL/TLS
+Project pro předmět ISA - Čtečka novinek ve formátu Atom s podporou SSL/TLS<br>
+Hodnocení: 14/15
